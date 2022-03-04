@@ -33,7 +33,7 @@ const char *format_joypad_rumble(bool supported, bool enabled)
 
 void print_joypad_inputs(joypad_inputs_t inputs)
 {
-    printf("Stick: %d,%d C-Stick: %d,%d L-Trig:%d R-Trig:%d\n", inputs.stick_x, inputs.stick_y, inputs.cstick_x, inputs.cstick_y, inputs.analog_l, inputs.analog_r);
+    printf("Stick: %+04d,%+04d C-Stick: %+04d,%+04d L-Trig:%03d R-Trig:%03d\n", inputs.stick_x, inputs.stick_y, inputs.cstick_x, inputs.cstick_y, inputs.analog_l, inputs.analog_r);
     printf("A:%d B:%d X:%d Y:%d L:%d R:%d Z:%d Start:%d\n", inputs.a, inputs.b, inputs.x, inputs.y, inputs.l, inputs.r, inputs.z, inputs.start);
     printf("D-U:%d D-D:%d D-L:%d D-R:%d C-U:%d C-D:%d C-L:%d C-R:%d\n", inputs.d_up, inputs.d_down, inputs.d_left, inputs.d_right, inputs.c_up, inputs.c_down, inputs.c_left, inputs.c_right);
 }
@@ -41,13 +41,7 @@ void print_joypad_inputs(joypad_inputs_t inputs)
 int main(void)
 {
     timer_init();
-    display_init(
-        RESOLUTION_320x240,
-        DEPTH_32_BPP,
-        2,
-        GAMMA_NONE,
-        ANTIALIAS_RESAMPLE
-    );
+    display_init(RESOLUTION_320x240, DEPTH_32_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE);
     debug_init_isviewer();
 
     joypad_init();
