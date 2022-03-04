@@ -38,7 +38,7 @@ typedef uint8_t joypad_status_t;
 #define JOYPAD_STATUS_FLAG_GCN_RUMBLING  0x08
 #define JOYPAD_STATUS_FLAG_N64_ACCESSORY 0x01
 
-typedef struct __attribute__ ((packed)) joybus_cmd_identify_port_s
+typedef struct __attribute__((packed)) joybus_cmd_identify_port_s
 {
     /* metadata */
     uint8_t send_len;
@@ -50,7 +50,7 @@ typedef struct __attribute__ ((packed)) joybus_cmd_identify_port_s
     joypad_status_t status;
 } joybus_cmd_identify_port_t;
 
-typedef struct __attribute__ ((packed)) joybus_cmd_n64_controller_read_port_s
+typedef struct __attribute__((packed)) joybus_cmd_n64_controller_read_port_s
 {
     /* metadata */
     uint8_t send_len;
@@ -78,7 +78,7 @@ typedef struct __attribute__ ((packed)) joybus_cmd_n64_controller_read_port_s
     signed stick_y : 8;
 } joybus_cmd_n64_controller_read_port_t;
 
-typedef struct __attribute__ ((packed)) joybus_cmd_gcn_controller_origin_port_s
+typedef struct __attribute__((packed)) joybus_cmd_gcn_controller_origin_port_s
 {
     /* metadata */
     uint8_t send_len;
@@ -111,7 +111,7 @@ typedef struct __attribute__ ((packed)) joybus_cmd_gcn_controller_origin_port_s
     unsigned deadzone_1 : 8;
 } joybus_cmd_gcn_controller_origin_port_t;
 
-typedef struct __attribute__ ((packed)) joybus_cmd_gcn_controller_read_port_s
+typedef struct __attribute__((packed)) joybus_cmd_gcn_controller_read_port_s
 {
     /* metadata */
     uint8_t send_len;
@@ -170,33 +170,33 @@ typedef struct joypad_device_s
 static joypad_device_t devices[JOYPAD_PORT_COUNT];
 static int64_t last_identify_ticks = 0;
 
-static bool joypad_n64_controller_rumble_supported( joypad_port_t port )
+static bool joypad_n64_controller_rumble_supported(joypad_port_t port)
 {
     int err;
     uint8_t data[32];
 
-    memset( data, 0xFE, 32 );
-    err = write_mempak_address( port, 0x8000, data );
-    if ( err != 0 ) return false;
+    memset(data, 0xFE, 32);
+    err = write_mempak_address(port, 0x8000, data);
+    if (err != 0) return false;
 
-    memset( data, 0x80, 32 );
-    err = write_mempak_address( port, 0x8000, data );
-    if ( err != 0 ) return false;
+    memset(data, 0x80, 32);
+    err = write_mempak_address(port, 0x8000, data);
+    if (err != 0) return false;
 
-    err = read_mempak_address( port, 0x8000, data );
-    if ( err != 0 ) return false;
+    err = read_mempak_address(port, 0x8000, data);
+    if (err != 0) return false;
     return data[0] == 0x80;
 }
 
-static void joypad_n64_controller_rumble_toggle( joypad_port_t port, bool enabled )
+static void joypad_n64_controller_rumble_toggle(joypad_port_t port, bool enabled)
 {
     uint8_t data[32];
-    memset( data, enabled ? 0x01 : 0x00, sizeof( data ) );
+    memset(data, enabled ? 0x01 : 0x00, sizeof(data));
     // Magic alert: rumble state must be written thrice to behave consistently
-    for ( int i = 0; i < 3; ++i ) write_mempak_address( port, 0xC000, data );
+    for (int i = 0; i < 3; ++i) write_mempak_address(port, 0xC000, data);
 }
 
-void joypad_identify( bool reset )
+void joypad_identify(bool reset)
 {
     const joybus_cmd_identify_port_t send_cmd = {
         .send_len = 1,
@@ -204,23 +204,23 @@ void joypad_identify( bool reset )
         .command = reset ? 0xFF : 0x00,
     };
 
-    uint8_t input[JOYBUS_BLOCK_SIZE] = { 0 };
-    uint8_t output[JOYBUS_BLOCK_SIZE] = { 0 };
+    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
+    uint8_t output[JOYBUS_BLOCK_SIZE] = {0};
     size_t i;
 
     i = 0;
-    for ( joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port )
+    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
         memcpy(&input[i], &send_cmd, sizeof(send_cmd));
         i += sizeof(send_cmd);
     }
     input[i] = 0xFE;
-    input[ sizeof( input ) - 1 ] = 0x01;
+    input[sizeof(input) - 1] = 0x01;
 
-    joybus_exec( input, output );
+    joybus_exec(input, output);
 
     i = 0;
-    for ( joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port )
+    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
         joybus_cmd_identify_port_t recv_cmd;
         memcpy(&recv_cmd, &output[i], sizeof(recv_cmd));
@@ -228,16 +228,16 @@ void joypad_identify( bool reset )
 
         const joypad_identifier_t identifier = recv_cmd.identifier;
         const joypad_status_t status = recv_cmd.status;
-        joypad_device_t * device = &devices[port];
+        joypad_device_t *device = &devices[port];
         bool has_rumble = false;
 
-        if ( device->identifier != identifier )
+        if (device->identifier != identifier)
         {
-            memset( device, 0, sizeof( *device ) );
+            memset(device, 0, sizeof(*device));
             device->identifier = identifier;
         }
 
-        if ( identifier == JOYPAD_IDENTIFIER_N64_CONTROLLER )
+        if (identifier == JOYPAD_IDENTIFIER_N64_CONTROLLER)
         {
             device->style = JOYPAD_STYLE_N64;
             has_rumble = (
@@ -245,10 +245,10 @@ void joypad_identify( bool reset )
                 joypad_n64_controller_rumble_supported( port )
             );
         }
-        else if ( identifier & JOYPAD_IDENTIFIER_MASK_GCN_CONTROLLER )
+        else if (identifier & JOYPAD_IDENTIFIER_MASK_GCN_CONTROLLER)
         {
             device->style = JOYPAD_STYLE_GCN;
-            has_rumble = !( identifier & JOYPAD_IDENTIFIER_MASK_GCN_NORUMBLE );
+            has_rumble = !(identifier & JOYPAD_IDENTIFIER_MASK_GCN_NORUMBLE);
         }
         device->rumble_supported = has_rumble;
         device->rumble_state = has_rumble && device->rumble_state;
@@ -257,25 +257,25 @@ void joypad_identify( bool reset )
     last_identify_ticks = timer_ticks();
 }
 
-void joypad_init( void )
+void joypad_init(void)
 {
-    memset( &devices, 0, sizeof( devices ) );
-    joypad_identify( true );
+    memset(&devices, 0, sizeof(devices));
+    joypad_identify(true);
 }
 
-void joypad_poll( void )
+void joypad_poll(void)
 {
-    if ( timer_ticks() - last_identify_ticks > JOYPAD_IDENTIFY_INTERVAL_TICKS )
+    if (timer_ticks() - last_identify_ticks > JOYPAD_IDENTIFY_INTERVAL_TICKS)
     {
-        joypad_identify( false );
+        joypad_identify(false);
     }
 
-    uint8_t input[JOYBUS_BLOCK_SIZE] = { 0 };
-    uint8_t output[JOYBUS_BLOCK_SIZE] = { 0 };
+    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
+    uint8_t output[JOYBUS_BLOCK_SIZE] = {0};
     size_t i;
 
     i = 0;
-    for ( joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port )
+    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
         if (devices[port].style == JOYPAD_STYLE_N64)
         {
@@ -293,7 +293,7 @@ void joypad_poll( void )
                 .send_len = 3,
                 .recv_len = 8,
                 .command = 0x40, // TODO: Command ID enum
-                .mode = 0x03, // TODO: Dispel magic
+                .mode = 0x03,    // TODO: Dispel magic
                 .rumble = devices[port].rumble_state,
             };
             memcpy(&input[i], &send_cmd, sizeof(send_cmd));
@@ -311,9 +311,9 @@ void joypad_poll( void )
     joybus_exec(input, output);
 
     i = 0;
-    for ( joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port )
+    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
-        joypad_device_t * device = &devices[port];
+        joypad_device_t *device = &devices[port];
 
         if (device->style == JOYPAD_STYLE_N64)
         {
@@ -373,17 +373,17 @@ void joypad_poll( void )
                 .b = recv_cmd.b,
                 .z = recv_cmd.z,
                 .start = recv_cmd.start,
-                .d_up = recv_cmd.d_up,
-                .d_down = recv_cmd.d_down,
-                .d_left = recv_cmd.d_left,
+                .d_up    = recv_cmd.d_up,
+                .d_down  = recv_cmd.d_down,
+                .d_left  = recv_cmd.d_left,
                 .d_right = recv_cmd.d_right,
                 .y = recv_cmd.y,
                 .x = recv_cmd.x,
                 .l = recv_cmd.l,
                 .r = recv_cmd.r,
-                .c_up = cstick_y > +64,
-                .c_down = cstick_y < -64,
-                .c_left = cstick_x < -64,
+                .c_up    = cstick_y > +64,
+                .c_down  = cstick_y < -64,
+                .c_left  = cstick_x < -64,
                 .c_right = cstick_x > +64,
                 .stick_x = stick_x,
                 .stick_y = stick_y,
@@ -402,27 +402,27 @@ void joypad_poll( void )
     }
 }
 
-joypad_identifier_t joypad_identifier( joypad_port_t port )
+joypad_identifier_t joypad_identifier(joypad_port_t port)
 {
     return devices[port].identifier;
 }
 
-joypad_style_t joypad_style( joypad_port_t port )
+joypad_style_t joypad_style(joypad_port_t port)
 {
     return devices[port].style;
 }
 
-bool joypad_is_rumble_supported( joypad_port_t port )
+bool joypad_is_rumble_supported(joypad_port_t port)
 {
     return devices[port].rumble_supported;
 }
 
-bool joypad_get_rumble_state( joypad_port_t port )
+bool joypad_get_rumble_state(joypad_port_t port)
 {
     return devices[port].rumble_state;
 }
 
-void joypad_set_rumble_state( joypad_port_t port, bool enabled )
+void joypad_set_rumble_state(joypad_port_t port, bool enabled)
 {
     if (devices[port].rumble_supported)
     {
@@ -434,34 +434,34 @@ void joypad_set_rumble_state( joypad_port_t port, bool enabled )
     }
 }
 
-joypad_inputs_t joypad_inputs( joypad_port_t port )
+joypad_inputs_t joypad_inputs(joypad_port_t port)
 {
     return devices[port].current.inputs;
 }
 
-joypad_inputs_t joypad_pressed( joypad_port_t port )
+joypad_inputs_t joypad_pressed(joypad_port_t port)
 {
     const joypad_data_t current = devices[port].current;
     const joypad_data_t previous = devices[port].previous;
     const uint64_t pressed = current.digital & ~previous.digital;
-    const joypad_data_t result = { .digital = pressed, .analog = current.analog };
+    const joypad_data_t result = {.digital = pressed, .analog = current.analog};
     return result.inputs;
 }
 
-joypad_inputs_t joypad_released( joypad_port_t port )
+joypad_inputs_t joypad_released(joypad_port_t port)
 {
     const joypad_data_t current = devices[port].current;
     const joypad_data_t previous = devices[port].previous;
     const uint64_t released = ~(current.digital & previous.digital);
-    const joypad_data_t result = { .digital = released, .analog = current.analog };
+    const joypad_data_t result = {.digital = released, .analog = current.analog};
     return result.inputs;
 }
 
-joypad_inputs_t joypad_held( joypad_port_t port )
+joypad_inputs_t joypad_held(joypad_port_t port)
 {
     const joypad_data_t current = devices[port].current;
     const joypad_data_t previous = devices[port].previous;
     const uint64_t held = current.digital & previous.digital;
-    const joypad_data_t result = { .digital = held, .analog = current.analog };
+    const joypad_data_t result = {.digital = held, .analog = current.analog};
     return result.inputs;
 }
