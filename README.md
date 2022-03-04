@@ -32,8 +32,8 @@ The GameCube controller has more (and different) inputs than a Nintendo 64 contr
 * Analog triggers continue to be represented in "unsigned 8-bit" `(0, 255)` format
 * Nintendo 64 Controllers cannot press X or Y buttons
 * Nintendo 64 Controllers (badly) emulate analog L & R triggers using digital inputs
-* Nintendo 64 Controllers (badly) emulate analog C stick using digial inputs
-* GameCube Controllers (badly) emulate C buttons based on analog stick position
+* Nintendo 64 Controllers (badly) emulate analog C stick using digital inputs
+* GameCube Controllers (badly) emulate C buttons based on analog C stick position
 
 ## Rumble
 
@@ -41,7 +41,7 @@ If the controller has rumble capability, holding the A button will enable the ru
 
 For Nintendo 64 controllers, this requires a Rumble Pak accessory.
 
-For GameCube controllers, the 5-volt VCC pin must be connected to an external power source for rumble to work.
+For GameCube controllers, the 5-volt VCC pin on the controller plug must be connected to an external power source.
 
 ## Run the test ROM
 
