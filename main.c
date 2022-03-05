@@ -53,6 +53,7 @@ int main(void)
 
     console_init();
     console_set_render_mode(RENDER_MANUAL);
+    console_set_debug(false);
 
     while (1)
     {
@@ -60,7 +61,7 @@ int main(void)
 
         printf("N64/GCN Joypad Subsystem Test\n\n");
 
-        joypad_poll();
+        joypad_scan();
 
         for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
         {

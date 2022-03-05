@@ -149,8 +149,7 @@ typedef struct joypad_inputs_s
 } joypad_inputs_t;
 
 void joypad_init( void );
-void joypad_identify( bool reset );
-void joypad_poll( void );
+void joypad_scan( void );
 
 joypad_style_t joypad_style( joypad_port_t port );
 bool joypad_is_rumble_supported( joypad_port_t port );
