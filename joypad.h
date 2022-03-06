@@ -153,8 +153,10 @@ void joypad_scan( void );
 
 joypad_style_t joypad_style( joypad_port_t port );
 bool joypad_is_rumble_supported( joypad_port_t port );
-bool joypad_get_rumble_state( joypad_port_t port );
-void joypad_set_rumble_state( joypad_port_t port, bool enabled );
+bool joypad_get_rumble_active( joypad_port_t port );
+void joypad_set_rumble_active( joypad_port_t port, bool enabled );
+
+int joypad_get_rumble_detect_state(joypad_port_t port);
 
 joypad_inputs_t joypad_inputs( joypad_port_t port );
 joypad_inputs_t joypad_pressed( joypad_port_t port );

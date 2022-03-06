@@ -48,7 +48,7 @@ int main(void)
 
     joypad_style_t style;
     bool rumble_supported;
-    bool rumble_state;
+    bool rumble_active;
     joypad_inputs_t inputs;
 
     console_init();
@@ -67,24 +67,25 @@ int main(void)
         {
             style = joypad_style(port);
             rumble_supported = joypad_is_rumble_supported(port);
-            rumble_state = joypad_get_rumble_state(port);
+            rumble_active = joypad_get_rumble_active(port);
             inputs = joypad_inputs(port);
 
             if (rumble_supported)
             {
-                if (inputs.a && !rumble_state)
+                if (inputs.a && !rumble_active)
                 {
-                    joypad_set_rumble_state(port, true);
+                    joypad_set_rumble_active(port, true);
                 }
-                else if (!inputs.a && rumble_state)
+                else if (!inputs.a && rumble_active)
                 {
-                    joypad_set_rumble_state(port, false);
+                    joypad_set_rumble_active(port, false);
                 }
             }
 
             printf("Port %d ", port + 1);
             printf("Style: %s ", format_joypad_style(style));
-            printf("Rumble: %s\n", format_joypad_rumble(rumble_supported, rumble_state));
+            printf("Rumble: %s ", format_joypad_rumble(rumble_supported, rumble_active));
+            printf("WTF: %d\n", joypad_get_rumble_detect_state(port));
             print_joypad_inputs(inputs);
             printf("\n");
         }
