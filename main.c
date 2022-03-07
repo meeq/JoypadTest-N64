@@ -84,8 +84,7 @@ int main(void)
 
             printf("Port %d ", port + 1);
             printf("Style: %s ", format_joypad_style(style));
-            printf("Rumble: %s ", format_joypad_rumble(rumble_supported, rumble_active));
-            printf("WTF: %d\n", joypad_get_rumble_detect_state(port));
+            printf("Rumble: %s\n", format_joypad_rumble(rumble_supported, rumble_active));
             print_joypad_inputs(inputs);
             printf("\n");
         }
