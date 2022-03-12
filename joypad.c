@@ -128,6 +128,7 @@ static void joypad_n64_accessory_read(joypad_port_t port, uint16_t addr, void ca
         .recv_len = sizeof(send_cmd.recv_bytes),
         .command = JOYBUS_COMMAND_N64_ACCESSORY_READ,
         .addr_crc = addr_crc,
+        .recv_bytes = {[0 ... sizeof(send_cmd.recv_bytes)-1] = 0xFF},
     };
     memcpy(&input[i], &send_cmd, sizeof(send_cmd));
     i += sizeof(send_cmd);
@@ -150,6 +151,7 @@ static void joypad_n64_accessory_write(joypad_port_t port, uint16_t addr, uint8_
         .recv_len = sizeof(send_cmd.recv_bytes),
         .command = JOYBUS_COMMAND_N64_ACCESSORY_WRITE,
         .addr_crc = addr_crc,
+        .recv_bytes = {[0 ... sizeof(send_cmd.recv_bytes)-1] = 0xFF},
     };
     memcpy(&send_cmd.data, data, sizeof(send_cmd.data));
     memcpy(&input[i], &send_cmd, sizeof(send_cmd));
@@ -207,13 +209,15 @@ static void joypad_n64_rumble_detect_write_callback(uint64_t *out_dwords, void *
     }
     else if (state == JOYPAD_N64_ACCESSORY_STATE_DETECT_WRITE1_PENDING)
     {
+        // Step 2: Overwrite the accessory "scratch" sector
         context->state = JOYPAD_N64_ACCESSORY_STATE_DETECT_WRITE2_PENDING;
-        uint8_t data2[JOYBUS_N64_ACCESSORY_DATA_SIZE];
-        memset(data2, 0x80, sizeof(data2));
-        joypad_n64_accessory_write(port, 0x8000, data2, joypad_n64_rumble_detect_write_callback, ctx);
+        uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+        memset(data, 0x80, sizeof(data));
+        joypad_n64_accessory_write(port, 0x8000, data, joypad_n64_rumble_detect_write_callback, ctx);
     }
     else if (state == JOYPAD_N64_ACCESSORY_STATE_DETECT_WRITE2_PENDING)
     {
+        // Step 3: Read back the accessory "scratch" sector
         context->state = JOYPAD_N64_ACCESSORY_STATE_DETECT_READ_PENDING;
         joypad_n64_accessory_read(port, 0x8000, joypad_n64_rumble_detect_read_callback, ctx);
     }
@@ -224,6 +228,7 @@ static void joypad_n64_rumble_detect(joypad_port_t port)
     volatile joypad_n64_accessory_context_t *context = &joypad_n64_accessory_contexts[port];
     if (context->state == JOYPAD_N64_ACCESSORY_STATE_IDLE)
     {
+        // Step 1: Disable Transfer Pak power to GameBoy cartridge
         context->state = JOYPAD_N64_ACCESSORY_STATE_DETECT_WRITE1_PENDING;
         uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
         memset(data, 0xFE, sizeof(data));
@@ -327,6 +332,7 @@ static void joypad_identify(bool reset)
         .send_len = sizeof(send_cmd.send_bytes),
         .recv_len = sizeof(send_cmd.recv_bytes),
         .command = reset ? JOYBUS_COMMAND_RESET : JOYBUS_COMMAND_IDENTIFY,
+        .recv_bytes = {[0 ... sizeof(send_cmd.recv_bytes)-1] = 0xFF},
     };
 
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
