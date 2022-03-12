@@ -341,7 +341,7 @@ static void joypad_identify(bool reset)
     const joybus_cmd_identify_port_t send_cmd = {
         .send_len = 1,
         .recv_len = 3,
-        .command = reset ? 0xFF : 0x00,
+        .command = reset ? JOYBUS_COMMAND_RESET : JOYBUS_COMMAND_IDENTIFY,
     };
 
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
@@ -371,14 +371,35 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
     volatile joypad_device_t *device;
     joypad_style_t style;
     size_t i = 0;
+    uint8_t command;
+    uint8_t command_len;
 
     for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
         device = &joypad_read_devices[port];
         style = device->style;
 
+        // Check send_len to figure out if this port has a command on it
+        if (out_bytes[i] == 0)
+        {
+            // Skip this port
+            i++;
+            continue;
+        }
+
+        command_len = 2 + out_bytes[i] + out_bytes[i + 1];
+        command = out_bytes[i + 2];
+
         if (style == JOYPAD_STYLE_N64)
         {
+            // Ensure this command matches the identified controller
+            if (command != JOYBUS_COMMAND_N64_CONTROLLER_READ)
+            {
+                // Skip this port
+                i += command_len;
+                continue;
+            }
+
             joybus_cmd_n64_controller_read_port_t recv_cmd;
             memcpy(&recv_cmd, &out_bytes[i], sizeof(recv_cmd));
             i += sizeof(recv_cmd);
@@ -419,6 +440,14 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
         }
         else if (style == JOYPAD_STYLE_GCN)
         {
+            // Ensure this command matches the identified controller
+            if (command != JOYBUS_COMMAND_GCN_CONTROLLER_READ)
+            {
+                // Skip this port
+                i += command_len;
+                continue;
+            }
+
             joybus_cmd_gcn_controller_read_port_t recv_cmd;
             memcpy(&recv_cmd, &out_bytes[i], sizeof(recv_cmd));
             i += sizeof(recv_cmd);
@@ -458,8 +487,7 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
         else
         {
             // Skip this port
-            assert(out_bytes[i] == 0);
-            i++;
+            i += command_len;
         }
     }
 
@@ -484,7 +512,7 @@ static void joypad_read(void)
             const joybus_cmd_n64_controller_read_port_t send_cmd = {
                 .send_len = 1,
                 .recv_len = 4,
-                .command = 0x01, // TODO Command ID enum
+                .command = JOYBUS_COMMAND_N64_CONTROLLER_READ,
             };
             memcpy(&input[i], &send_cmd, sizeof(send_cmd));
             i += sizeof(send_cmd);
@@ -494,7 +522,7 @@ static void joypad_read(void)
             const joybus_cmd_gcn_controller_read_port_t send_cmd = {
                 .send_len = 3,
                 .recv_len = 8,
-                .command = 0x40, // TODO: Command ID enum
+                .command = JOYBUS_COMMAND_GCN_CONTROLLER_READ,
                 .mode = 0x03,    // TODO: Dispel magic
                 .rumble = device->rumble_active,
             };

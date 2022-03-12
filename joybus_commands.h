@@ -32,6 +32,11 @@ typedef uint8_t joybus_identify_status_t;
 #define JOYBUS_N64_ACCESSORY_STATUS_ABSENT -1
 #define JOYBUS_N64_ACCESSORY_STATUS_BADCRC -2
 
+#define JOYBUS_COMMAND_IDENTIFY 0x00
+#define JOYBUS_COMMAND_RESET 0xFF
+#define JOYBUS_COMMAND_N64_CONTROLLER_READ 0x01
+#define JOYBUS_COMMAND_GCN_CONTROLLER_READ 0x40
+
 typedef struct __attribute__((packed)) joybus_cmd_n64_accessory_read_port_s
 {
     /* metadata */
