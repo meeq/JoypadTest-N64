@@ -365,8 +365,8 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
     volatile joypad_device_t *device;
     joypad_style_t style;
     size_t i = 0;
-    uint8_t command;
     uint8_t command_len;
+    uint8_t command_id;
 
     for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
@@ -381,13 +381,14 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
             continue;
         }
 
+        // Commands always start with send_len, recv_len, command_id
         command_len = 2 + out_bytes[i] + out_bytes[i + 1];
-        command = out_bytes[i + 2];
+        command_id = out_bytes[i + 2];
 
         if (style == JOYPAD_STYLE_N64)
         {
             // Ensure this command matches the identified controller
-            if (command != JOYBUS_COMMAND_N64_CONTROLLER_READ)
+            if (command_id != JOYBUS_COMMAND_N64_CONTROLLER_READ)
             {
                 // Skip this port
                 i += command_len;
@@ -435,7 +436,7 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
         else if (style == JOYPAD_STYLE_GCN)
         {
             // Ensure this command matches the identified controller
-            if (command != JOYBUS_COMMAND_GCN_CONTROLLER_READ)
+            if (command_id != JOYBUS_COMMAND_GCN_CONTROLLER_READ)
             {
                 // Skip this port
                 i += command_len;
