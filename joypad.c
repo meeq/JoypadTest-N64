@@ -128,9 +128,10 @@ static void joypad_n64_accessory_read(joypad_port_t port, uint16_t addr, void ca
         .recv_len = sizeof(send_cmd.recv_bytes),
         .command = JOYBUS_COMMAND_N64_ACCESSORY_READ,
         .addr_crc = addr_crc,
-        .recv_bytes = {[0 ... sizeof(send_cmd.recv_bytes)-1] = 0xFF},
     };
-    memcpy(&input[i], &send_cmd, sizeof(send_cmd));
+    // Micro-optimization: Copy as few bytes as necessary
+    const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
+    memcpy(&input[i], &send_cmd, recv_offset);
     i += sizeof(send_cmd);
 
     // Close out the Joybus operation block
@@ -151,10 +152,11 @@ static void joypad_n64_accessory_write(joypad_port_t port, uint16_t addr, uint8_
         .recv_len = sizeof(send_cmd.recv_bytes),
         .command = JOYBUS_COMMAND_N64_ACCESSORY_WRITE,
         .addr_crc = addr_crc,
-        .recv_bytes = {[0 ... sizeof(send_cmd.recv_bytes)-1] = 0xFF},
     };
-    memcpy(&send_cmd.data, data, sizeof(send_cmd.data));
-    memcpy(&input[i], &send_cmd, sizeof(send_cmd));
+    // Micro-optimization: Copy as few bytes as necessary
+    const size_t data_offset = offsetof(typeof(send_cmd), data);
+    memcpy(&input[i], &send_cmd, data_offset);
+    memcpy(&input[i + data_offset], data, sizeof(send_cmd.data));
     i += sizeof(send_cmd);
 
     // Close out the Joybus operation block
@@ -332,8 +334,8 @@ static void joypad_identify(bool reset)
         .send_len = sizeof(send_cmd.send_bytes),
         .recv_len = sizeof(send_cmd.recv_bytes),
         .command = reset ? JOYBUS_COMMAND_RESET : JOYBUS_COMMAND_IDENTIFY,
-        .recv_bytes = {[0 ... sizeof(send_cmd.recv_bytes)-1] = 0xFF},
     };
+    const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
 
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
     size_t i = 0;
@@ -341,7 +343,8 @@ static void joypad_identify(bool reset)
     // Populate the Joybus commands on each port
     for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
-        memcpy(&input[i], &send_cmd, sizeof(send_cmd));
+        // Micro-optimization: Copy as few bytes as necessary
+        memcpy(&input[i], &send_cmd, recv_offset);
         i += sizeof(send_cmd);
     }
 
@@ -504,9 +507,10 @@ static void joypad_read(void)
                 .send_len = sizeof(send_cmd.send_bytes),
                 .recv_len = sizeof(send_cmd.recv_bytes),
                 .command = JOYBUS_COMMAND_N64_CONTROLLER_READ,
-                .recv_bytes = {[0 ... sizeof(send_cmd.recv_bytes)-1] = 0xFF},
             };
-            memcpy(&input[i], &send_cmd, sizeof(send_cmd));
+            // Micro-optimization: Copy as few bytes as necessary
+            const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
+            memcpy(&input[i], &send_cmd, recv_offset);
             i += sizeof(send_cmd);
         }
         else if (style == JOYPAD_STYLE_GCN)
@@ -517,9 +521,10 @@ static void joypad_read(void)
                 .command = JOYBUS_COMMAND_GCN_CONTROLLER_READ,
                 .mode = 0x03,    // TODO: Dispel magic
                 .rumble = device->rumble_active,
-                .recv_bytes = {[0 ... sizeof(send_cmd.recv_bytes)-1] = 0xFF},
             };
-            memcpy(&input[i], &send_cmd, sizeof(send_cmd));
+            // Micro-optimization: Copy as few bytes as necessary
+            const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
+            memcpy(&input[i], &send_cmd, recv_offset);
             i += sizeof(send_cmd);
         }
         else
