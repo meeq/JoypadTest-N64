@@ -532,7 +532,7 @@ static void joypad_read(void)
     }
 }
 
-void joypad_vi_interrupt_callback(void)
+static void joypad_vi_interrupt_callback(void)
 {
     if (joypad_identify_last_ticks + JOYPAD_IDENTIFY_INTERVAL_TICKS < timer_ticks())
     {
