@@ -10,7 +10,8 @@
 #include <libdragon.h>
 
 // Secret internal API
-void joybus_exec_async(const void * input, void (*callback)(uint64_t *output, void *ctx), void *ctx);
+typedef void (*joybus_callback_t)(uint64_t *out_dwords, void *ctx);
+void joybus_exec_async(const void * input, joybus_callback_t callback, void *ctx);
 
 #include "joybus_commands.h"
 #include "joypad.h"
@@ -29,6 +30,17 @@ void joybus_exec_async(const void * input, void (*callback)(uint64_t *output, vo
 
 #define JOYPAD_IDENTIFY_INTERVAL_TICKS TICKS_PER_SECOND
 
+typedef enum
+{
+    JOYPAD_ACCESSORY_STATE_IDLE = 0,
+    JOYPAD_ACCESSORY_STATE_DETECT_WRITE1_PENDING,
+    JOYPAD_ACCESSORY_STATE_DETECT_WRITE2_PENDING,
+    JOYPAD_ACCESSORY_STATE_DETECT_READ_PENDING,
+    JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE1_PENDING,
+    JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE2_PENDING,
+    JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE3_PENDING,
+} joypad_accessory_state_t;
+
 typedef union
 {
     uint64_t raw;
@@ -42,9 +54,11 @@ typedef union
 
 typedef struct joypad_device_s
 {
+    const joypad_port_t port;
     joybus_identifier_t identifier;
     joypad_style_t style;
 
+    joypad_accessory_state_t accessory_state;
     bool rumble_supported;
     bool rumble_active;
 
@@ -52,38 +66,25 @@ typedef struct joypad_device_s
     joypad_data_t previous;
 } joypad_device_t;
 
-typedef enum
-{
-    JOYPAD_N64_ACCESSORY_STATE_IDLE = 0,
-    JOYPAD_N64_ACCESSORY_STATE_DETECT_WRITE1_PENDING,
-    JOYPAD_N64_ACCESSORY_STATE_DETECT_WRITE2_PENDING,
-    JOYPAD_N64_ACCESSORY_STATE_DETECT_READ_PENDING,
-    JOYPAD_N64_ACCESSORY_STATE_RUMBLE_WRITE1_PENDING,
-    JOYPAD_N64_ACCESSORY_STATE_RUMBLE_WRITE2_PENDING,
-    JOYPAD_N64_ACCESSORY_STATE_RUMBLE_WRITE3_PENDING,
-} joypad_n64_accessory_state_t;
-
-typedef struct joypad_n64_accessory_context_s
-{
-    const joypad_port_t port;
-    joypad_n64_accessory_state_t state;
-    bool rumble_active;
-} joypad_n64_accessory_context_t;
-
-static joypad_device_t joypad_scan_devices[JOYPAD_PORT_COUNT] = { 0 };
-
-// Interrupt-driven data
-static volatile bool joypad_identify_pending = false;
+// "Hot" (interrupt-driven) global state
 static volatile int64_t joypad_identify_last_ticks = 0;
+static volatile bool joypad_identify_pending = false;
 static volatile bool joypad_read_pending = false;
-static volatile joypad_device_t joypad_read_devices[JOYPAD_PORT_COUNT] = { 0 };
-static volatile joypad_n64_accessory_context_t joypad_n64_accessory_contexts[JOYPAD_PORT_COUNT] = {
+static volatile joypad_device_t joypad_hot_devices[JOYPAD_PORT_COUNT] = {
     { JOYPAD_PORT_1 }, { JOYPAD_PORT_2 }, { JOYPAD_PORT_3 }, { JOYPAD_PORT_4 }
 };
 
+// "Cold" (stable) global state
+static joypad_device_t joypad_cold_devices[JOYPAD_PORT_COUNT] = { 0 };
+
 static uint16_t __calc_addr_crc( uint16_t address )
 {
-    static const uint16_t xor_table[16] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x15, 0x1F, 0x0B, 0x16, 0x19, 0x07, 0x0E, 0x1C, 0x0D, 0x1A, 0x01 };
+    static const uint16_t xor_table[16] = { 
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x15, 0x1F, 0x0B,
+        0x16, 0x19, 0x07, 0x0E,
+        0x1C, 0x0D, 0x1A, 0x01
+    };
     uint16_t crc = 0;
     address &= ~0x1F;
     for (int i = 15; i >= 5; i--)
@@ -117,7 +118,7 @@ static int __check_data_crc(uint8_t actual, uint8_t expected)
     else return JOYBUS_N64_ACCESSORY_STATUS_BADCRC;
 }
 
-static void joypad_n64_accessory_read(joypad_port_t port, uint16_t addr, void callback(uint64_t *out_dwords, void *ctx), void *ctx)
+static void joypad_n64_accessory_read(joypad_port_t port, uint16_t addr, joybus_callback_t callback, void *ctx)
 {
     uint16_t addr_crc = __calc_addr_crc(addr);
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
@@ -129,7 +130,7 @@ static void joypad_n64_accessory_read(joypad_port_t port, uint16_t addr, void ca
         .command = JOYBUS_COMMAND_N64_ACCESSORY_READ,
         .addr_crc = addr_crc,
     };
-    // Micro-optimization: Copy as few bytes as necessary
+    // Micro-optimization: Only copy necessary bytes
     const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
     memcpy(&input[i], &send_cmd, recv_offset);
     i += sizeof(send_cmd);
@@ -141,19 +142,19 @@ static void joypad_n64_accessory_read(joypad_port_t port, uint16_t addr, void ca
     joybus_exec_async(input, callback, ctx);
 }
 
-static void joypad_n64_accessory_write(joypad_port_t port, uint16_t addr, uint8_t *data, void callback(uint64_t *out_dwords, void *ctx), void *ctx)
+static void joypad_n64_accessory_write(joypad_port_t port, uint16_t addr, uint8_t *data, joybus_callback_t callback, void *ctx)
 {
     uint16_t addr_crc = __calc_addr_crc(addr);
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
     size_t i = port;
 
-    joybus_cmd_n64_accessory_write_port_t send_cmd = {
+    const joybus_cmd_n64_accessory_write_port_t send_cmd = {
         .send_len = sizeof(send_cmd.send_bytes),
         .recv_len = sizeof(send_cmd.recv_bytes),
         .command = JOYBUS_COMMAND_N64_ACCESSORY_WRITE,
         .addr_crc = addr_crc,
     };
-    // Micro-optimization: Copy as few bytes as necessary
+    // Micro-optimization: Only copy necessary bytes
     const size_t data_offset = offsetof(typeof(send_cmd), data);
     memcpy(&input[i], &send_cmd, data_offset);
     memcpy(&input[i + data_offset], data, sizeof(send_cmd.data));
@@ -168,117 +169,160 @@ static void joypad_n64_accessory_write(joypad_port_t port, uint16_t addr, uint8_
 
 static void joypad_n64_rumble_detect_read_callback(uint64_t *out_dwords, void *ctx)
 {
-    volatile joypad_n64_accessory_context_t *context = ctx;
-    joypad_n64_accessory_state_t state = context->state;
+    uint8_t *out_bytes = (void *)out_dwords;
+    volatile joypad_device_t *context = ctx;
+    joypad_accessory_state_t state = context->accessory_state;
     joypad_port_t port = context->port;
 
-    uint8_t *out_bytes = (void *)out_dwords;
-    joybus_cmd_n64_accessory_read_port_t recv_cmd;
-    memcpy(&recv_cmd, &out_bytes[port], sizeof(recv_cmd));
-    int status = __check_data_crc(recv_cmd.data_crc, __calc_data_crc(recv_cmd.data));
+    // Micro-optimization: Only copy necessary bytes
+    const size_t data_offset = offsetof(joybus_cmd_n64_accessory_read_port_t, data);
+    const size_t crc_offset = offsetof(joybus_cmd_n64_accessory_read_port_t, data_crc);
+    uint8_t *out_data = &out_bytes[port + data_offset];
+    uint8_t out_crc = out_bytes[port + crc_offset];
+    int status = __check_data_crc(out_crc, __calc_data_crc(out_data));
 
-    if (state == JOYPAD_N64_ACCESSORY_STATE_DETECT_READ_PENDING)
+    if (state == JOYPAD_ACCESSORY_STATE_DETECT_READ_PENDING)
     {
-        if (status == JOYBUS_N64_ACCESSORY_STATUS_OK && recv_cmd.data[0] == 0x80)
+        if (status == JOYBUS_N64_ACCESSORY_STATUS_OK && out_data[0] == 0x80)
         {
-            joypad_read_devices[port].rumble_supported = true;
+            joypad_hot_devices[port].rumble_supported = true;
         }
         else
         {
-            joypad_read_devices[port].rumble_supported = false;
-            joypad_read_devices[port].rumble_active = false;
+            joypad_hot_devices[port].rumble_supported = false;
+            joypad_hot_devices[port].rumble_active = false;
         }
-        context->state = JOYPAD_N64_ACCESSORY_STATE_IDLE;
+        context->accessory_state = JOYPAD_ACCESSORY_STATE_IDLE;
     }
 }
 
 static void joypad_n64_rumble_detect_write_callback(uint64_t *out_dwords, void *ctx)
 {
-    volatile joypad_n64_accessory_context_t *context = ctx;
-    joypad_n64_accessory_state_t state = context->state;
+    uint8_t *out_bytes = (void *)out_dwords;
+    volatile joypad_device_t *context = ctx;
+    joypad_accessory_state_t state = context->accessory_state;
     joypad_port_t port = context->port;
 
-    uint8_t *out_bytes = (void *)out_dwords;
-    joybus_cmd_n64_accessory_write_port_t recv_cmd;
-    memcpy(&recv_cmd, &out_bytes[port], sizeof(recv_cmd));
-    int status = __check_data_crc(recv_cmd.data_crc, __calc_data_crc(recv_cmd.data));
+    // Micro-optimization: Only copy necessary bytes
+    const size_t data_offset = offsetof(joybus_cmd_n64_accessory_write_port_t, data);
+    const size_t crc_offset = offsetof(joybus_cmd_n64_accessory_write_port_t, data_crc);
+    uint8_t *out_data = &out_bytes[port + data_offset];
+    uint8_t out_crc = out_bytes[port + crc_offset];
+    int status = __check_data_crc(out_crc, __calc_data_crc(out_data));
 
     if (status != JOYBUS_N64_ACCESSORY_STATUS_OK)
     {
-        joypad_read_devices[port].rumble_supported = false;
-        joypad_read_devices[port].rumble_active = false;
-        context->state = JOYPAD_N64_ACCESSORY_STATE_IDLE;
+        // Accessory write failed: no accessory or bad connection
+        joypad_hot_devices[port].rumble_supported = false;
+        joypad_hot_devices[port].rumble_active = false;
+        context->accessory_state = JOYPAD_ACCESSORY_STATE_IDLE;
     }
-    else if (state == JOYPAD_N64_ACCESSORY_STATE_DETECT_WRITE1_PENDING)
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_WRITE1_PENDING)
     {
-        // Step 2: Overwrite the accessory "scratch" sector
-        context->state = JOYPAD_N64_ACCESSORY_STATE_DETECT_WRITE2_PENDING;
-        uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
-        memset(data, 0x80, sizeof(data));
-        joypad_n64_accessory_write(port, 0x8000, data, joypad_n64_rumble_detect_write_callback, ctx);
+        // Step 2: Overwrite the accessory "detection sector"
+        context->accessory_state = JOYPAD_ACCESSORY_STATE_DETECT_WRITE2_PENDING;
+        uint8_t in_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+        memset(in_data, 0x80, sizeof(in_data));
+        joypad_n64_accessory_write(
+            port,
+            JOYBUS_N64_ACCESSORY_SECTOR_DETECT,
+            in_data,
+            joypad_n64_rumble_detect_write_callback,
+            ctx
+        );
     }
-    else if (state == JOYPAD_N64_ACCESSORY_STATE_DETECT_WRITE2_PENDING)
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_WRITE2_PENDING)
     {
-        // Step 3: Read back the accessory "scratch" sector
-        context->state = JOYPAD_N64_ACCESSORY_STATE_DETECT_READ_PENDING;
-        joypad_n64_accessory_read(port, 0x8000, joypad_n64_rumble_detect_read_callback, ctx);
+        // Step 3: Read back the accessory "detection sector"
+        context->accessory_state = JOYPAD_ACCESSORY_STATE_DETECT_READ_PENDING;
+        joypad_n64_accessory_read(
+            port,
+            JOYBUS_N64_ACCESSORY_SECTOR_DETECT,
+            joypad_n64_rumble_detect_read_callback,
+            ctx
+        );
     }
 }
 
 static void joypad_n64_rumble_detect(joypad_port_t port)
 {
-    volatile joypad_n64_accessory_context_t *context = &joypad_n64_accessory_contexts[port];
-    if (context->state == JOYPAD_N64_ACCESSORY_STATE_IDLE)
+    volatile joypad_device_t *context = &joypad_hot_devices[port];
+    if (context->accessory_state == JOYPAD_ACCESSORY_STATE_IDLE)
     {
         // Step 1: Disable Transfer Pak power to GameBoy cartridge
-        context->state = JOYPAD_N64_ACCESSORY_STATE_DETECT_WRITE1_PENDING;
-        uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
-        memset(data, 0xFE, sizeof(data));
-        joypad_n64_accessory_write(port, 0x8000, data, joypad_n64_rumble_detect_write_callback, (void *)context);
+        context->accessory_state = JOYPAD_ACCESSORY_STATE_DETECT_WRITE1_PENDING;
+        uint8_t in_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+        memset(in_data, 0xFE, sizeof(in_data));
+        joypad_n64_accessory_write(
+            port,
+            JOYBUS_N64_ACCESSORY_SECTOR_DETECT,
+            in_data,
+            joypad_n64_rumble_detect_write_callback,
+            (void *)context
+        );
     }
 }
 
 static void joypad_n64_rumble_toggle_write_callback(uint64_t *out_dwords, void *ctx)
 {
-    volatile joypad_n64_accessory_context_t *context = ctx;
-    joypad_n64_accessory_state_t state = context->state;
+    uint8_t *out_bytes = (void *)out_dwords;
+    volatile joypad_device_t *context = ctx;
+    joypad_accessory_state_t state = context->accessory_state;
     joypad_port_t port = context->port;
 
-    uint8_t *out_bytes = (void *)out_dwords;
-    joybus_cmd_n64_accessory_write_port_t recv_cmd;
-    memcpy(&recv_cmd, &out_bytes[port], sizeof(recv_cmd));
-    int status = __check_data_crc(recv_cmd.data_crc, __calc_data_crc(recv_cmd.data));
+    // Micro-optimization: Only copy necessary bytes
+    const size_t data_offset = offsetof(joybus_cmd_n64_accessory_write_port_t, data);
+    const size_t crc_offset = offsetof(joybus_cmd_n64_accessory_write_port_t, data_crc);
+    uint8_t *out_data = &out_bytes[port + data_offset];
+    uint8_t out_crc = out_bytes[port + crc_offset];
+    int status = __check_data_crc(out_crc, __calc_data_crc(out_data));
 
-    if (state == JOYPAD_N64_ACCESSORY_STATE_RUMBLE_WRITE3_PENDING || status != JOYBUS_N64_ACCESSORY_STATUS_OK)
+    if (state == JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE3_PENDING || status != JOYBUS_N64_ACCESSORY_STATUS_OK)
     {
-        context->state = JOYPAD_N64_ACCESSORY_STATE_IDLE;
+        context->accessory_state = JOYPAD_ACCESSORY_STATE_IDLE;
     }
     else
     {
-        if (state == JOYPAD_N64_ACCESSORY_STATE_RUMBLE_WRITE1_PENDING)
+        // Proceed to the next state
+        if (state == JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE1_PENDING)
         {
-            context->state = JOYPAD_N64_ACCESSORY_STATE_RUMBLE_WRITE2_PENDING;
+            context->accessory_state = JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE2_PENDING;
         }
-        else if (state == JOYPAD_N64_ACCESSORY_STATE_RUMBLE_WRITE2_PENDING)
+        else if (state == JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE2_PENDING)
         {
-            context->state = JOYPAD_N64_ACCESSORY_STATE_RUMBLE_WRITE3_PENDING;
+            context->accessory_state = JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE3_PENDING;
         }
-        uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
-        memset(data, context->rumble_active ? 0x01 : 0x00, sizeof(data));
-        joypad_n64_accessory_write(context->port, 0xC000, data, joypad_n64_rumble_toggle_write_callback, ctx);
+        else return;
+        // For best results, rumble start/stop should be sent three times
+        uint8_t in_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+        memset(in_data, context->rumble_active, sizeof(in_data));
+        joypad_n64_accessory_write(
+            context->port,
+            JOYBUS_N64_ACCESSORY_SECTOR_RUMBLE,
+            in_data,
+            joypad_n64_rumble_toggle_write_callback,
+            ctx
+        );
     }
 }
 
 static void joypad_n64_rumble_toggle(joypad_port_t port, bool active)
 {
-    volatile joypad_n64_accessory_context_t *context = &joypad_n64_accessory_contexts[port];
-    disable_interrupts();
-    context->state = JOYPAD_N64_ACCESSORY_STATE_RUMBLE_WRITE1_PENDING;
-    context->rumble_active = active;
-    enable_interrupts();
-    uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
-    memset(data, active ? 0x01 : 0x00, sizeof(data));
-    joypad_n64_accessory_write(port, 0xC000, data, joypad_n64_rumble_toggle_write_callback, (void *)context);
+    volatile joypad_device_t *context = &joypad_hot_devices[port];
+    if (context->rumble_supported)
+    {
+        context->accessory_state = JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE1_PENDING;
+        context->rumble_active = active;
+        uint8_t in_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+        memset(in_data, active, sizeof(in_data));
+        joypad_n64_accessory_write(
+            port,
+            JOYBUS_N64_ACCESSORY_SECTOR_RUMBLE,
+            in_data,
+            joypad_n64_rumble_toggle_write_callback,
+            (void *)context
+        );
+    }
 }
 
 static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
@@ -294,11 +338,14 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
 
         const joybus_identifier_t identifier = recv_cmd.identifier;
         const joybus_identify_status_t status = recv_cmd.status;
-        volatile joypad_device_t *device = &joypad_read_devices[port];
+        volatile joypad_device_t *device = &joypad_hot_devices[port];
 
         if (device->identifier != identifier)
         {
-            memset((void *)device, 0, sizeof(*device));
+            // Reset the device (except port, which should never change)
+            void *ptr = (void *)device + sizeof(device->port);
+            size_t size = sizeof(*device) - sizeof(device->port);
+            memset(ptr, 0, size);
             device->identifier = identifier;
         }
 
@@ -343,7 +390,7 @@ static void joypad_identify(bool reset)
     // Populate the Joybus commands on each port
     for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
-        // Micro-optimization: Copy as few bytes as necessary
+        // Micro-optimization: Only copy necessary bytes
         memcpy(&input[i], &send_cmd, recv_offset);
         i += sizeof(send_cmd);
     }
@@ -370,7 +417,7 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
 
     for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
-        device = &joypad_read_devices[port];
+        device = &joypad_hot_devices[port];
         style = device->style;
 
         // Check send_len to figure out if this port has a command on it
@@ -499,7 +546,7 @@ static void joypad_read(void)
     // Populate the Joybus commands on each port
     for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
-        device = &joypad_read_devices[port];
+        device = &joypad_hot_devices[port];
         style = device->style;
 
         if (style == JOYPAD_STYLE_N64)
@@ -509,7 +556,7 @@ static void joypad_read(void)
                 .recv_len = sizeof(send_cmd.recv_bytes),
                 .command = JOYBUS_COMMAND_N64_CONTROLLER_READ,
             };
-            // Micro-optimization: Copy as few bytes as necessary
+            // Micro-optimization: Only copy necessary bytes
             const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
             memcpy(&input[i], &send_cmd, recv_offset);
             i += sizeof(send_cmd);
@@ -523,7 +570,7 @@ static void joypad_read(void)
                 .mode = 0x03,    // TODO: Dispel magic
                 .rumble = device->rumble_active,
             };
-            // Micro-optimization: Copy as few bytes as necessary
+            // Micro-optimization: Only copy necessary bytes
             const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
             memcpy(&input[i], &send_cmd, recv_offset);
             i += sizeof(send_cmd);
@@ -568,55 +615,50 @@ void joypad_close(void)
 
 void joypad_scan(void)
 {
-    assert(sizeof(joypad_scan_devices) == sizeof(joypad_read_devices));
+    assert(sizeof(joypad_cold_devices) == sizeof(joypad_hot_devices));
     disable_interrupts();
-    memcpy(&joypad_scan_devices, (void*)&joypad_read_devices, sizeof(joypad_scan_devices));
+    memcpy(&joypad_cold_devices, (void*)&joypad_hot_devices, sizeof(joypad_hot_devices));
     enable_interrupts();
 }
 
 void joypad_set_rumble_active(joypad_port_t port, bool active)
 {
-    if (joypad_scan_devices[port].rumble_supported)
+    disable_interrupts();
+    if (joypad_hot_devices[port].style == JOYPAD_STYLE_N64)
     {
-        if (joypad_scan_devices[port].style == JOYPAD_STYLE_N64)
-        {
-            joypad_n64_rumble_toggle(port, active);
-        }
-        disable_interrupts();
-        joypad_read_devices[port].rumble_active = active;
-        enable_interrupts();
+        joypad_n64_rumble_toggle(port, active);
     }
-}
-
-joybus_identifier_t joypad_identifier(joypad_port_t port)
-{
-    return joypad_scan_devices[port].identifier;
+    else
+    {
+        joypad_hot_devices[port].rumble_active = active;
+    }
+    enable_interrupts();
 }
 
 joypad_style_t joypad_style(joypad_port_t port)
 {
-    return joypad_scan_devices[port].style;
+    return joypad_cold_devices[port].style;
 }
 
 bool joypad_is_rumble_supported(joypad_port_t port)
 {
-    return joypad_scan_devices[port].rumble_supported;
+    return joypad_cold_devices[port].rumble_supported;
 }
 
 bool joypad_get_rumble_active(joypad_port_t port)
 {
-    return joypad_scan_devices[port].rumble_active;
+    return joypad_cold_devices[port].rumble_active;
 }
 
 joypad_inputs_t joypad_inputs(joypad_port_t port)
 {
-    return joypad_scan_devices[port].current.inputs;
+    return joypad_cold_devices[port].current.inputs;
 }
 
 joypad_inputs_t joypad_pressed(joypad_port_t port)
 {
-    const joypad_data_t current = joypad_scan_devices[port].current;
-    const joypad_data_t previous = joypad_scan_devices[port].previous;
+    const joypad_data_t current = joypad_cold_devices[port].current;
+    const joypad_data_t previous = joypad_cold_devices[port].previous;
     const uint64_t pressed = current.digital & ~previous.digital;
     const joypad_data_t result = {.digital = pressed, .analog = current.analog};
     return result.inputs;
@@ -624,8 +666,8 @@ joypad_inputs_t joypad_pressed(joypad_port_t port)
 
 joypad_inputs_t joypad_released(joypad_port_t port)
 {
-    const joypad_data_t current = joypad_scan_devices[port].current;
-    const joypad_data_t previous = joypad_scan_devices[port].previous;
+    const joypad_data_t current = joypad_cold_devices[port].current;
+    const joypad_data_t previous = joypad_cold_devices[port].previous;
     const uint64_t released = ~(current.digital & previous.digital);
     const joypad_data_t result = {.digital = released, .analog = current.analog};
     return result.inputs;
@@ -633,8 +675,8 @@ joypad_inputs_t joypad_released(joypad_port_t port)
 
 joypad_inputs_t joypad_held(joypad_port_t port)
 {
-    const joypad_data_t current = joypad_scan_devices[port].current;
-    const joypad_data_t previous = joypad_scan_devices[port].previous;
+    const joypad_data_t current = joypad_cold_devices[port].current;
+    const joypad_data_t previous = joypad_cold_devices[port].previous;
     const uint64_t held = current.digital & previous.digital;
     const joypad_data_t result = {.digital = held, .analog = current.analog};
     return result.inputs;
