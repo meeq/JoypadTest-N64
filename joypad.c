@@ -174,16 +174,12 @@ static void joypad_n64_rumble_detect_read_callback(uint64_t *out_dwords, void *c
     joypad_accessory_state_t state = context->accessory_state;
     joypad_port_t port = context->port;
 
-    // Micro-optimization: Only copy necessary bytes
-    const size_t data_offset = offsetof(joybus_cmd_n64_accessory_read_port_t, data);
-    const size_t crc_offset = offsetof(joybus_cmd_n64_accessory_read_port_t, data_crc);
-    uint8_t *out_data = &out_bytes[port + data_offset];
-    uint8_t out_crc = out_bytes[port + crc_offset];
-    int status = __check_data_crc(out_crc, __calc_data_crc(out_data));
+    joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
+    int status = __check_data_crc(recv_cmd->data_crc, __calc_data_crc(recv_cmd->data));
 
     if (state == JOYPAD_ACCESSORY_STATE_DETECT_READ_PENDING)
     {
-        if (status == JOYBUS_N64_ACCESSORY_STATUS_OK && out_data[0] == 0x80)
+        if (status == JOYBUS_N64_ACCESSORY_STATUS_OK && recv_cmd->data[0] == 0x80)
         {
             joypad_hot_devices[port].rumble_supported = true;
         }
@@ -203,12 +199,8 @@ static void joypad_n64_rumble_detect_write_callback(uint64_t *out_dwords, void *
     joypad_accessory_state_t state = context->accessory_state;
     joypad_port_t port = context->port;
 
-    // Micro-optimization: Only copy necessary bytes
-    const size_t data_offset = offsetof(joybus_cmd_n64_accessory_write_port_t, data);
-    const size_t crc_offset = offsetof(joybus_cmd_n64_accessory_write_port_t, data_crc);
-    uint8_t *out_data = &out_bytes[port + data_offset];
-    uint8_t out_crc = out_bytes[port + crc_offset];
-    int status = __check_data_crc(out_crc, __calc_data_crc(out_data));
+    joybus_cmd_n64_accessory_write_port_t *recv_cmd = (void *)&out_bytes[port];
+    int status = __check_data_crc(recv_cmd->data_crc, __calc_data_crc(recv_cmd->data));
 
     if (status != JOYBUS_N64_ACCESSORY_STATUS_OK)
     {
@@ -270,12 +262,8 @@ static void joypad_n64_rumble_toggle_write_callback(uint64_t *out_dwords, void *
     joypad_accessory_state_t state = context->accessory_state;
     joypad_port_t port = context->port;
 
-    // Micro-optimization: Only copy necessary bytes
-    const size_t data_offset = offsetof(joybus_cmd_n64_accessory_write_port_t, data);
-    const size_t crc_offset = offsetof(joybus_cmd_n64_accessory_write_port_t, data_crc);
-    uint8_t *out_data = &out_bytes[port + data_offset];
-    uint8_t out_crc = out_bytes[port + crc_offset];
-    int status = __check_data_crc(out_crc, __calc_data_crc(out_data));
+    joybus_cmd_n64_accessory_write_port_t *recv_cmd = (void *)&out_bytes[port];
+    int status = __check_data_crc(recv_cmd->data_crc, __calc_data_crc(recv_cmd->data));
 
     if (state == JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE3_PENDING || status != JOYBUS_N64_ACCESSORY_STATUS_OK)
     {
@@ -328,16 +316,16 @@ static void joypad_n64_rumble_toggle(joypad_port_t port, bool active)
 static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
 {
     uint8_t *out_bytes = (void *)out_dwords;
-    joybus_cmd_identify_port_t recv_cmd;
+    joybus_cmd_identify_port_t *recv_cmd;
     size_t i = 0;
 
     for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
     {
-        memcpy(&recv_cmd, &out_bytes[i], sizeof(recv_cmd));
-        i += sizeof(recv_cmd);
+        recv_cmd = (void *)&out_bytes[i];
+        i += sizeof(*recv_cmd);
 
-        const joybus_identifier_t identifier = recv_cmd.identifier;
-        const joybus_identify_status_t status = recv_cmd.status;
+        const joybus_identifier_t identifier = recv_cmd->identifier;
+        const joybus_identify_status_t status = recv_cmd->status;
         volatile joypad_device_t *device = &joypad_hot_devices[port];
 
         if (device->identifier != identifier)
@@ -442,42 +430,42 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
                 continue;
             }
 
-            joybus_cmd_n64_controller_read_port_t recv_cmd;
-            memcpy(&recv_cmd, &out_bytes[i], sizeof(recv_cmd));
-            i += sizeof(recv_cmd);
+            joybus_cmd_n64_controller_read_port_t *recv_cmd;
+            recv_cmd = (void *)&out_bytes[i];
+            i += sizeof(*recv_cmd);
 
             int cstick_x = 0;
-            if (recv_cmd.c_left && !recv_cmd.c_right) cstick_x = -127;
-            if (!recv_cmd.c_left && recv_cmd.c_right) cstick_x = +127;
+            if (recv_cmd->c_left && !recv_cmd->c_right) cstick_x = -127;
+            if (!recv_cmd->c_left && recv_cmd->c_right) cstick_x = +127;
 
             int cstick_y = 0;
-            if (recv_cmd.c_up && !recv_cmd.c_down) cstick_y = -127;
-            if (!recv_cmd.c_up && recv_cmd.c_down) cstick_y = +127;
+            if (recv_cmd->c_up && !recv_cmd->c_down) cstick_y = -127;
+            if (!recv_cmd->c_up && recv_cmd->c_down) cstick_y = +127;
 
             device->previous = device->current;
             device->current.inputs = (joypad_inputs_t){
-                .a = recv_cmd.a,
-                .b = recv_cmd.b,
-                .z = recv_cmd.z,
-                .start = recv_cmd.start,
-                .d_up = recv_cmd.d_up,
-                .d_down = recv_cmd.d_down,
-                .d_left = recv_cmd.d_left,
-                .d_right = recv_cmd.d_right,
+                .a = recv_cmd->a,
+                .b = recv_cmd->b,
+                .z = recv_cmd->z,
+                .start = recv_cmd->start,
+                .d_up = recv_cmd->d_up,
+                .d_down = recv_cmd->d_down,
+                .d_left = recv_cmd->d_left,
+                .d_right = recv_cmd->d_right,
                 .y = 0,
                 .x = 0,
-                .l = recv_cmd.l,
-                .r = recv_cmd.r,
-                .c_up = recv_cmd.c_up,
-                .c_down = recv_cmd.c_down,
-                .c_left = recv_cmd.c_left,
-                .c_right = recv_cmd.c_right,
-                .stick_x = recv_cmd.stick_x,
-                .stick_y = recv_cmd.stick_y,
+                .l = recv_cmd->l,
+                .r = recv_cmd->r,
+                .c_up = recv_cmd->c_up,
+                .c_down = recv_cmd->c_down,
+                .c_left = recv_cmd->c_left,
+                .c_right = recv_cmd->c_right,
+                .stick_x = recv_cmd->stick_x,
+                .stick_y = recv_cmd->stick_y,
                 .cstick_x = cstick_x,
                 .cstick_y = cstick_y,
-                .analog_l = recv_cmd.l ? 255 : 0,
-                .analog_r = recv_cmd.r ? 255 : 0,
+                .analog_l = recv_cmd->l ? 255 : 0,
+                .analog_r = recv_cmd->r ? 255 : 0,
             };
         }
         else if (style == JOYPAD_STYLE_GCN)
@@ -490,30 +478,30 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
                 continue;
             }
 
-            joybus_cmd_gcn_controller_read_port_t recv_cmd;
-            memcpy(&recv_cmd, &out_bytes[i], sizeof(recv_cmd));
-            i += sizeof(recv_cmd);
+            joybus_cmd_gcn_controller_read_port_t *recv_cmd;
+            recv_cmd = (void *)&out_bytes[i];
+            i += sizeof(*recv_cmd);
 
             // TODO Handle origins and dead-zones
-            const int stick_x = ((int)recv_cmd.stick_x) - 128;
-            const int stick_y = ((int)recv_cmd.stick_y) - 128;
-            const int cstick_x = ((int)recv_cmd.cstick_x) - 128;
-            const int cstick_y = ((int)recv_cmd.cstick_y) - 128;
+            const int stick_x = ((int)recv_cmd->stick_x) - 128;
+            const int stick_y = ((int)recv_cmd->stick_y) - 128;
+            const int cstick_x = ((int)recv_cmd->cstick_x) - 128;
+            const int cstick_y = ((int)recv_cmd->cstick_y) - 128;
 
             device->previous = device->current;
             device->current.inputs = (joypad_inputs_t){
-                .a = recv_cmd.a,
-                .b = recv_cmd.b,
-                .z = recv_cmd.z,
-                .start = recv_cmd.start,
-                .d_up    = recv_cmd.d_up,
-                .d_down  = recv_cmd.d_down,
-                .d_left  = recv_cmd.d_left,
-                .d_right = recv_cmd.d_right,
-                .y = recv_cmd.y,
-                .x = recv_cmd.x,
-                .l = recv_cmd.l,
-                .r = recv_cmd.r,
+                .a = recv_cmd->a,
+                .b = recv_cmd->b,
+                .z = recv_cmd->z,
+                .start = recv_cmd->start,
+                .d_up    = recv_cmd->d_up,
+                .d_down  = recv_cmd->d_down,
+                .d_left  = recv_cmd->d_left,
+                .d_right = recv_cmd->d_right,
+                .y = recv_cmd->y,
+                .x = recv_cmd->x,
+                .l = recv_cmd->l,
+                .r = recv_cmd->r,
                 .c_up    = cstick_y > +64,
                 .c_down  = cstick_y < -64,
                 .c_left  = cstick_x < -64,
@@ -522,8 +510,8 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
                 .stick_y = stick_y,
                 .cstick_x = cstick_x,
                 .cstick_y = cstick_y,
-                .analog_l = recv_cmd.analog_l,
-                .analog_r = recv_cmd.analog_r,
+                .analog_l = recv_cmd->analog_l,
+                .analog_r = recv_cmd->analog_r,
             };
         }
         else
