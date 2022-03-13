@@ -75,7 +75,9 @@ static volatile joypad_device_t joypad_hot_devices[JOYPAD_PORT_COUNT] = {
 };
 
 // "Cold" (stable) global state
-static joypad_device_t joypad_cold_devices[JOYPAD_PORT_COUNT] = { 0 };
+static joypad_device_t joypad_cold_devices[JOYPAD_PORT_COUNT] = {
+    { JOYPAD_PORT_1 }, { JOYPAD_PORT_2 }, { JOYPAD_PORT_3 }, { JOYPAD_PORT_4 }
+};
 
 static uint16_t __calc_addr_crc( uint16_t address )
 {
