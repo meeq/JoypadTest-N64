@@ -65,8 +65,8 @@ int main(void)
 
         for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
         {
-            style = joypad_style(port);
-            rumble_supported = joypad_is_rumble_supported(port);
+            style = joypad_get_style(port);
+            rumble_supported = joypad_get_rumble_supported(port);
             rumble_active = joypad_get_rumble_active(port);
             inputs = joypad_inputs(port);
 

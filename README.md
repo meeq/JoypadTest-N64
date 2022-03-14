@@ -11,9 +11,8 @@ This is a simple test ROM for Nintendo 64 that demonstrates an abstraction conce
 The standard Nintendo 64 controller has fewer (and different) inputs than a GameCube controller:
 
 * Missing X & Y buttons
-* Missing a C analog stick; instead there are 4 digital buttons
-* L & R triggers are not pressure sensitive
-* Analog stick values are in `(-128, 127)` format instead of `(0, 255)`
+* Missing a C analog stick; instead there are 4 digital C directional buttons
+* Does not have any pressure sensitive buttons or triggers
 
 ### GameCube
 
@@ -21,19 +20,20 @@ GameCube controllers must be connected using a "passive adapter" that can be cre
 
 The GameCube controller has more (and different) inputs than a Nintendo 64 controller:
 
-* Has extra X & Y buttons
+* Has X & Y buttons
 * Has pressure-sensitive L & R triggers
-* Missing C buttons; instead there is a C analog stick
-* Analog stick values are in `(0, 255)` format instead of `(-128, 127)`
+* Missing C directional buttons; instead there is a C analog stick
+* Some have working pressure-sensitive A & B buttons
+  * Analog A & B is non-functional on most GameCube controllers (official *and* third party)
 
 ## Compatibility compromises
 
-* Analog stick values are normalized to "signed 8-bit" `(-128, 127)` format
-* Analog triggers continue to be represented in "unsigned 8-bit" `(0, 255)` format
-* Nintendo 64 Controllers cannot press X or Y buttons
-* Nintendo 64 Controllers (badly) emulate analog L & R triggers using digital inputs
-* Nintendo 64 Controllers (badly) emulate analog C stick using digital inputs
-* GameCube Controllers (badly) emulate C buttons based on analog C stick position
+* Nintendo 64 controllers cannot press X or Y buttons
+* Nintendo 64 controllers (badly) emulate analog L & R triggers using digital inputs
+* Nintendo 64 controllers (badly) emulate analog C stick using digital inputs
+* GameCube controllers (badly) emulate C buttons based on analog C stick position
+  * Players will not be able to press C-Left & C-Right or C-Up & C-Down simultaneously
+* GameCube controllers always use analog mode 3 and will not read analog A & B inputs
 
 ## Rumble
 

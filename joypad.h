@@ -37,16 +37,16 @@ typedef enum
 /** @brief Joypad Style Types */
 typedef enum
 {
-    /** @brief Unplugged or Unknown Controller Style */
+    /** @brief Unplugged or Unknown Joypad Style */
     JOYPAD_STYLE_NONE = 0,
-    /** @brief Nintendo 64 Controller Style */
+    /** @brief Nintendo 64 Joypad Style */
     JOYPAD_STYLE_N64  = 1,
-    /** @brief GameCube Controller Style */
+    /** @brief GameCube Joypad Style */
     JOYPAD_STYLE_GCN  = 2,
 } joypad_style_t;
 
 /** @brief Common Joypad Inputs State Structure */
-typedef struct joypad_inputs_s
+typedef struct __attribute__((packed)) joypad_inputs_s
 {
     /** @brief State of the A button */
     unsigned a : 1;
@@ -80,86 +80,86 @@ typedef struct joypad_inputs_s
     unsigned r : 1;
     /**
      * @brief State of the C-Up button.
-     * For GameCube controllers, the value will be emulated
-     * based on the C-Stick Y axis position.
+     * For GameCube controllers, the value will be
+     * emulated based on the C-Stick Y axis position.
      */
     unsigned c_up : 1;
     /**
      * @brief State of the C-Down button.
-     * For GameCube controllers, the value will be emulated
-     * based on the C-Stick Y axis position.
+     * For GameCube controllers, the value will be
+     * emulated based on the C-Stick Y axis position.
      */
     unsigned c_down : 1;
     /**
      * @brief State of the C-Left button.
-     * For GameCube controllers, the value will be emulated
-     * based on the C-Stick X axis position.
+     * For GameCube controllers, the value will be
+     * emulated based on the C-Stick X axis position.
      */
     unsigned c_left : 1;
     /**
      * @brief State of the C-Right button.
-     * For GameCube controllers, the value will be emulated
-     * based on the C-Stick X axis position.
+     * For GameCube controllers, the value will be
+     * emulated based on the C-Stick X axis position.
      */
     unsigned c_right : 1;
     /**
-     * @brief State of the joystick X axis.
-     * For GCN controllers, the value will be converted from
-     * [0,255] to [-128,127] for consistency with the regular
-     * N64 controller joystick value.
+     * @brief State of the joystick X axis. (-127, +127)
+     * For GCN controllers, this value will be relative to its origin.
      */
     signed stick_x : 8;
     /**
-     * @brief State of the joystick Y axis.
-     * For GCN controllers, the value will be converted from
-     * [0,255] to [-128,127] for consistency with the regular
-     * N64 controller joystick value.
+     * @brief State of the joystick Y axis. (-127, +127)
+     * For GCN controllers, this value will be relative to its origin.
      */
     signed stick_y : 8;
     /**
-     * @brief State of the "C-Stick" X axis.
-     * This input only exists on GCN controllers.
-     * The value will be converted from [0,255] to [-128,127]
-     * for consistency with the joystick value.
+     * @brief State of the "C-Stick" X axis. (-127, +127)
+     * For GCN controllers, this value will be relative to its origin.
+     * For N64 controllers, this value will be emulated based on the
+     * digital C-Left and C-Right button values (-127=C-Left, +127=C-Right).
      */
     signed cstick_x: 8;
     /**
-     * @brief State of the "C-Stick" Y axis.
-     * This input only exists on GCN controllers.
-     * The value will be converted from [0,255] to [-128,127]
-     * for consistency with the joystick value.
+     * @brief State of the "C-Stick" Y axis. (-127, +127)
+     * The value will be relative to the corresponding origin.
+     * For N64 controllers, this value will be emulated based on the
+     * digital C-Up and C-Down button values (-127=C-Down, +127=C-Up).
      */
     signed cstick_y: 8;
     /**
-     * @brief State of the analog L trigger.
+     * @brief State of the analog L trigger. (0, 255)
      * This value will be close to zero when no pressure is applied,
-     * and close to 255 when full pressure is applied.
+     * and close to 200 when full pressure is applied.
+     * For GCN controllers, this value will be relative to its origin.
      * For N64 controllers, this value will be emulated based on the 
-     * digital L trigger button value (0=unpressed, 255=pressed).
+     * digital L trigger button value (0=unpressed, 200=pressed).
      */
     unsigned analog_l : 8;
     /**
-     * @brief State of the analog R trigger.
+     * @brief State of the analog R trigger. (0, 255)
      * This value will be close to zero when no pressure is applied,
-     * and close to 255 when full pressure is applied.
+     * and close to 200 when full pressure is applied.
+     * For GCN controllers, this value will be relative to its origin.
      * For N64 controllers, this value will be emulated based on the
-     * digital R trigger button value (0=unpressed, 255=pressed).
+     * digital R trigger button value (0=unpressed, 200=pressed).
      */
     unsigned analog_r : 8;
 } joypad_inputs_t;
 
-void joypad_init( void );
-void joypad_scan( void );
+void joypad_init(void);
+void joypad_close(void);
+void joypad_identify(bool reset);
+void joypad_scan(void);
 
-joypad_style_t joypad_style( joypad_port_t port );
-bool joypad_is_rumble_supported( joypad_port_t port );
-bool joypad_get_rumble_active( joypad_port_t port );
-void joypad_set_rumble_active( joypad_port_t port, bool enabled );
+joypad_style_t joypad_get_style(joypad_port_t port);
+bool joypad_get_rumble_supported(joypad_port_t port);
+bool joypad_get_rumble_active(joypad_port_t port);
+void joypad_set_rumble_active(joypad_port_t port, bool enabled);
 
-joypad_inputs_t joypad_inputs( joypad_port_t port );
-joypad_inputs_t joypad_pressed( joypad_port_t port );
-joypad_inputs_t joypad_released( joypad_port_t port );
-joypad_inputs_t joypad_held( joypad_port_t port );
+joypad_inputs_t joypad_inputs(joypad_port_t port);
+joypad_inputs_t joypad_pressed(joypad_port_t port);
+joypad_inputs_t joypad_released(joypad_port_t port);
+joypad_inputs_t joypad_held(joypad_port_t port);
 
 #ifdef __cplusplus
 }
