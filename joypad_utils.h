@@ -15,7 +15,7 @@
     _value < _low ? _low : (_value > _high ? _high : _value); \
 })
 
-#define CLAMP_ANALOG_STICK(value) CLAMP((int)(value), -127, 127)
+#define CLAMP_ANALOG_AXIS(value) CLAMP((int)(value), -127, 127)
 #define CLAMP_ANALOG_TRIGGER(value) CLAMP((int)(value), 0, 255)
 
 #endif

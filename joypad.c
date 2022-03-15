@@ -609,10 +609,10 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
             }
 
             // Bias the analog values with the corresponding origin
-            const int stick_x = CLAMP_ANALOG_STICK(recv_cmd->stick_x - device->origin.stick_x);
-            const int stick_y = CLAMP_ANALOG_STICK(recv_cmd->stick_y - device->origin.stick_y);
-            const int cstick_x = CLAMP_ANALOG_STICK(recv_cmd->cstick_x - device->origin.cstick_x);
-            const int cstick_y = CLAMP_ANALOG_STICK(recv_cmd->cstick_y - device->origin.cstick_y);
+            const int stick_x = CLAMP_ANALOG_AXIS(recv_cmd->stick_x - device->origin.stick_x);
+            const int stick_y = CLAMP_ANALOG_AXIS(recv_cmd->stick_y - device->origin.stick_y);
+            const int cstick_x = CLAMP_ANALOG_AXIS(recv_cmd->cstick_x - device->origin.cstick_x);
+            const int cstick_y = CLAMP_ANALOG_AXIS(recv_cmd->cstick_y - device->origin.cstick_y);
             const int analog_l = CLAMP_ANALOG_TRIGGER(recv_cmd->analog_l - device->origin.analog_l);
             const int analog_r = CLAMP_ANALOG_TRIGGER(recv_cmd->analog_r - device->origin.analog_r);
 
