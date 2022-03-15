@@ -355,7 +355,7 @@ static void joypad_gcn_origin_callback(uint64_t *out_dwords, void *ctx)
     volatile joypad_device_t *device;
     size_t i = 0;
 
-    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
+    JOYPAD_PORT_FOR_EACH(port)
     {
         // Check send_len to figure out if this port has a command on it
         if (out_bytes[i] == 0)
@@ -403,7 +403,7 @@ static void joypad_gcn_origin_check_async(void)
     size_t i = 0;
 
     // Populate the Joybus commands on each port
-    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
+    JOYPAD_PORT_FOR_EACH(port)
     {
         device = &joypad_hot_devices[port];
         if (device->style == JOYPAD_STYLE_GCN)
@@ -437,7 +437,7 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
     volatile joypad_device_t *device;
     size_t i = 0;
 
-    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
+    JOYPAD_PORT_FOR_EACH(port)
     {
         recv_cmd = (void *)&out_bytes[i];
         i += sizeof(*recv_cmd);
@@ -493,7 +493,7 @@ static void joypad_identify_async(bool reset)
     size_t i = 0;
 
     // Populate the Joybus commands on each port
-    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
+    JOYPAD_PORT_FOR_EACH(port)
     {
         // Rumble motors should be deactivated by a reset
         if (reset) joypad_set_rumble_active(port, false);
@@ -524,7 +524,7 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
     bool check_origins;
     size_t i = 0;
 
-    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
+    JOYPAD_PORT_FOR_EACH(port)
     {
         // Check send_len to figure out if this port has a command on it
         if (out_bytes[i] == 0)
@@ -666,7 +666,7 @@ static void joypad_read_async(void)
     size_t i = 0;
     
     // Populate the Joybus commands on each port
-    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
+    JOYPAD_PORT_FOR_EACH(port)
     {
         device = &joypad_hot_devices[port];
         style = device->style;
@@ -726,7 +726,7 @@ static void joypad_vi_interrupt_callback(void)
 
 void joypad_init(void)
 {
-    for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
+    JOYPAD_PORT_FOR_EACH(port)
     {
         joypad_device_reset(port, JOYBUS_IDENTIFIER_UNKNOWN);
     }

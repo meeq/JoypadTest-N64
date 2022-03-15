@@ -34,6 +34,13 @@ typedef enum
     JOYPAD_PORT_COUNT = 4,
 } joypad_port_t;
 
+/** @brief Convenience macro to iterate through all Joypad ports */
+#define JOYPAD_PORT_FOR_EACH(iterator_token) for (\
+    joypad_port_t iterator_token = JOYPAD_PORT_1; \
+    iterator_token < JOYPAD_PORT_COUNT; \
+    iterator_token += 1 \
+)
+
 /** @brief Joypad Style Types */
 typedef enum
 {
