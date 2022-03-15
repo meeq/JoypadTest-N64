@@ -23,15 +23,15 @@ The GameCube controller has more (and different) inputs than a Nintendo 64 contr
 * Has X & Y buttons
 * Has pressure-sensitive L & R triggers
 * Missing C directional buttons; instead there is a C analog stick
-* Some have working pressure-sensitive A & B buttons
+* Some have pressure-sensitive A & B buttons
   * Analog A & B is non-functional on most GameCube controllers (official *and* third party)
 
 ## Compatibility compromises
 
 * Nintendo 64 controllers cannot press X or Y buttons
-* Nintendo 64 controllers (badly) emulate analog L & R triggers using digital inputs
-* Nintendo 64 controllers (badly) emulate analog C stick using digital inputs
-* GameCube controllers (badly) emulate C buttons based on analog C stick position
+* Nintendo 64 controllers (attempt to) emulate analog L & R triggers using digital inputs
+* Nintendo 64 controllers (attempt to) emulate analog C stick using digital inputs
+* GameCube controllers (attempt to) emulate C buttons based on analog C stick position
   * Players will not be able to press C-Left & C-Right or C-Up & C-Down simultaneously
 * GameCube controllers always use analog mode 3 and will not read analog A & B inputs
 
