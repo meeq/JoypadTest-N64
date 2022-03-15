@@ -104,26 +104,32 @@ typedef struct __attribute__((packed)) joypad_inputs_s
     unsigned c_right : 1;
     /**
      * @brief State of the joystick X axis. (-127, +127)
+     * On real controllers the range of this axis is roughly (-100, +100).
+     * For well-worn N64 controllers, the range may be as low as (-60, +60).
      * For GCN controllers, this value will be relative to its origin.
      */
     signed stick_x : 8;
     /**
      * @brief State of the joystick Y axis. (-127, +127)
+     * On real controllers the range of this axis is roughly (-100, +100).
+     * For well-worn N64 controllers, the range may be as low as (-60, +60).
      * For GCN controllers, this value will be relative to its origin.
      */
     signed stick_y : 8;
     /**
      * @brief State of the "C-Stick" X axis. (-127, +127)
+     * On real controllers the range of this axis is roughly (-76, +76).
      * For GCN controllers, this value will be relative to its origin.
      * For N64 controllers, this value will be emulated based on the
-     * digital C-Left and C-Right button values (-127=C-Left, +127=C-Right).
+     * digital C-Left and C-Right button values (-76=C-Left, +76=C-Right).
      */
     signed cstick_x: 8;
     /**
      * @brief State of the "C-Stick" Y axis. (-127, +127)
+     * On real controllers the range of this axis is roughly (-76, +76).
      * The value will be relative to the corresponding origin.
      * For N64 controllers, this value will be emulated based on the
-     * digital C-Up and C-Down button values (-127=C-Down, +127=C-Up).
+     * digital C-Up and C-Down button values (-76=C-Down, +76=C-Up).
      */
     signed cstick_y: 8;
     /**
