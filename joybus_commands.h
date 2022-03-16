@@ -64,7 +64,7 @@ typedef struct __attribute__((packed)) joybus_cmd_n64_accessory_read_port_s
         struct __attribute__((__packed__))
         {
             uint8_t command;
-            uint16_t addr_crc;
+            uint16_t addr_checksum;
         };
     };
     /* recv_data */
@@ -91,7 +91,7 @@ typedef struct __attribute__((packed)) joybus_cmd_n64_accessory_write_port_s
         struct __attribute__((__packed__))
         {
             uint8_t command;
-            uint16_t addr_crc;
+            uint16_t addr_checksum;
             uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
         };
     };

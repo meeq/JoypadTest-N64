@@ -135,7 +135,7 @@ static void joypad_device_reset(joypad_port_t port, uint16_t identifier)
     joypad_devices_cold[port] = JOYPAD_DEVICE_COLD_INIT;
 }
 
-static uint16_t __calc_addr_crc(uint16_t address)
+static uint16_t __calc_addr_checksum(uint16_t address)
 {
     static const uint16_t xor_table[16] = { 
         0x00, 0x00, 0x00, 0x00,
@@ -143,13 +143,13 @@ static uint16_t __calc_addr_crc(uint16_t address)
         0x16, 0x19, 0x07, 0x0E,
         0x1C, 0x0D, 0x1A, 0x01
     };
-    uint16_t crc = 0;
+    uint16_t checksum = 0;
     address &= ~0x1F;
     for (int i = 15; i >= 5; i--)
         if ((address >> i) & 0x1)
-            crc ^= xor_table[i];
-    crc &= 0x1F;
-    return address | crc;
+            checksum ^= xor_table[i];
+    checksum &= 0x1F;
+    return address | checksum;
 }
 
 static uint8_t __calc_data_crc(const uint8_t *data)
@@ -178,7 +178,6 @@ static joypad_n64_accessory_crc_status_t __check_data_crc(uint8_t actual, uint8_
 
 static void joypad_n64_accessory_read_async(joypad_port_t port, uint16_t addr, joybus_callback_t callback, void *ctx)
 {
-    uint16_t addr_crc = __calc_addr_crc(addr);
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
     size_t i = port;
 
@@ -186,7 +185,7 @@ static void joypad_n64_accessory_read_async(joypad_port_t port, uint16_t addr, j
         .send_len = sizeof(send_cmd.send_bytes),
         .recv_len = sizeof(send_cmd.recv_bytes),
         .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_READ,
-        .addr_crc = addr_crc,
+        .addr_checksum = __calc_addr_checksum(addr),
     };
     // Micro-optimization: Minimize copy length
     const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
@@ -202,7 +201,6 @@ static void joypad_n64_accessory_read_async(joypad_port_t port, uint16_t addr, j
 
 static void joypad_n64_accessory_write_async(joypad_port_t port, uint16_t addr, uint8_t *data, joybus_callback_t callback, void *ctx)
 {
-    uint16_t addr_crc = __calc_addr_crc(addr);
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
     size_t i = port;
 
@@ -210,7 +208,7 @@ static void joypad_n64_accessory_write_async(joypad_port_t port, uint16_t addr, 
         .send_len = sizeof(send_cmd.send_bytes),
         .recv_len = sizeof(send_cmd.recv_bytes),
         .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_WRITE,
-        .addr_crc = addr_crc,
+        .addr_checksum = __calc_addr_checksum(addr),
     };
     // Micro-optimization: Minimize copy length
     const size_t data_offset = offsetof(typeof(send_cmd), data);
