@@ -19,6 +19,8 @@ const char *format_joypad_style(joypad_style_t style)
         return "N64";
     case JOYPAD_STYLE_GCN:
         return "GCN";
+    case JOYPAD_STYLE_MOUSE:
+        return "Mouse";
     default:
         return "Unknown";
     }

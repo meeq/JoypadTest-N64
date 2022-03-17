@@ -4,7 +4,7 @@ all: joypadtest.z64
 BUILD_DIR = build
 include $(N64_INST)/include/n64.mk
 
-SRC = main.c joypad.c
+SRC = main.c joypad.c joybus_n64_accessory.c
 OBJS = $(SRC:%.c=$(BUILD_DIR)/%.o)
 DEPS = $(SRC:%.c=$(BUILD_DIR)/%.d)
 

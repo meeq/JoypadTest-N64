@@ -15,9 +15,18 @@
 extern "C" {
 #endif
 
+// Expose libdragon joybus internal API
+typedef void (*joybus_callback_t)(uint64_t *out_dwords, void *ctx);
+void joybus_exec_async(const void * input, joybus_callback_t callback, void *ctx);
+
+typedef uint16_t joybus_identifier_t;
+
 #define JOYBUS_IDENTIFIER_UNKNOWN               0x0000
 #define JOYBUS_IDENTIFIER_NONE                  0xFFFF
 #define JOYBUS_IDENTIFIER_N64_CONTROLLER        0x0500
+#define JOYBUS_IDENTIFIER_N64_MOUSE             0x0200
+#define JOYBUS_IDENTIFIER_N64_VRU               0x0001
+#define JOYBUS_IDENTIFIER_N64_KEYBOARD          0x0002
 #define JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER   0x0900
 #define JOYBUS_IDENTIFIER_MASK_GCN_NORUMBLE     0x2000
 
@@ -120,7 +129,7 @@ typedef struct __attribute__((packed)) joybus_cmd_identify_port_s
         uint8_t recv_bytes[0x03];
         struct __attribute__((__packed__))
         {
-            uint16_t identifier;
+            joybus_identifier_t identifier;
             uint8_t status;
         };
     };

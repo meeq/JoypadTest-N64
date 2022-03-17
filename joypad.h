@@ -44,12 +44,14 @@ typedef enum
 /** @brief Joypad Style Types */
 typedef enum
 {
-    /** @brief Unplugged or Unknown Joypad Style */
+    /** @brief Unsupported Joypad Style */
     JOYPAD_STYLE_NONE = 0,
-    /** @brief Nintendo 64 Joypad Style */
-    JOYPAD_STYLE_N64  = 1,
-    /** @brief GameCube Joypad Style */
-    JOYPAD_STYLE_GCN  = 2,
+    /** @brief Nintendo 64 Controller Style */
+    JOYPAD_STYLE_N64,
+    /** @brief GameCube Controller Style */
+    JOYPAD_STYLE_GCN,
+    /** @brief Mouse Style */
+    JOYPAD_STYLE_MOUSE,
 } joypad_style_t;
 
 /** @brief Common Joypad Inputs State Structure */
