@@ -7,37 +7,131 @@
 #include <string.h>
 #include <libdragon.h>
 
+#include "joybus_commands.h"
+#include "joybus_n64_accessory.h"
 #include "joypad.h"
 
-const char *format_joypad_style(joypad_style_t style)
+#define BEAT_PERIODS_COUNT 60
+#define BEAT_PERIOD_INTERVAL_TICKS TICKS_PER_SECOND
+#define TICKS_PER_MINUTE (TICKS_PER_SECOND * 60)
+#define BEAT_PERIODS_PER_MINUTE ((float)TICKS_PER_MINUTE / (float)BEAT_PERIOD_INTERVAL_TICKS)
+
+typedef enum
 {
-    switch (style)
+    BIO_SENSOR_STATE_IDLE = 0,
+    BIO_SENSOR_STATE_COUNTING,
+    BIO_SENSOR_STATE_PULSING
+} bio_sensor_state_t;
+
+typedef struct
+{
+    bio_sensor_state_t state;
+    int64_t period_start_ticks;
+    unsigned period_beats;
+    unsigned period_cursor;
+    unsigned period_counter;
+    unsigned beats_per_period[BEAT_PERIODS_COUNT];
+} bio_sensor_reader_t;
+
+static volatile bio_sensor_reader_t bio_sensor_readers[JOYPAD_PORT_COUNT] = {0};
+
+void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
+{
+    const uint8_t *out_bytes = (void *)out_dwords;
+    joypad_port_t port = (joypad_port_t)ctx;
+    volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
+    bio_sensor_state_t current_state = reader->state;
+    if (current_state == BIO_SENSOR_STATE_IDLE) return;
+
+    const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
+    int crc_status = joybus_n64_accessory_data_crc_compare(recv_cmd->data, recv_cmd->data_crc);
+    if (crc_status != JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK)
     {
-    case JOYPAD_STYLE_NONE:
-        return "None";
-    case JOYPAD_STYLE_N64:
-        return "N64";
-    case JOYPAD_STYLE_GCN:
-        return "GCN";
-    case JOYPAD_STYLE_MOUSE:
-        return "Mouse";
-    default:
-        return "Unknown";
+        reader->state = BIO_SENSOR_STATE_IDLE;
+        reader->period_counter = 0;
+        return;
     }
+
+    int64_t now_ticks = timer_ticks();
+    unsigned period_beats = reader->period_beats;
+    if (reader->period_start_ticks + BEAT_PERIOD_INTERVAL_TICKS < now_ticks)
+    {
+        if (period_beats > 0)
+        {
+            unsigned cursor = reader->period_cursor;
+            reader->beats_per_period[cursor++] = reader->period_beats;
+            if (cursor >= BEAT_PERIODS_COUNT) cursor = 0;
+            reader->period_cursor = cursor;
+            reader->period_beats = 0;
+            reader->period_counter++;
+        }
+        reader->period_start_ticks = now_ticks;
+    }
+
+    uint8_t byte = recv_cmd->data[0];
+    bio_sensor_state_t next_state = BIO_SENSOR_STATE_IDLE;
+    if (byte == 0x00) next_state = BIO_SENSOR_STATE_PULSING;
+    if (byte == 0x03) next_state = BIO_SENSOR_STATE_COUNTING;
+
+    if (
+        current_state == BIO_SENSOR_STATE_PULSING &&
+        next_state == BIO_SENSOR_STATE_COUNTING
+    ) {
+        reader->period_beats = period_beats + 1;
+    }
+    reader->state = next_state;
+
+    joybus_n64_accessory_read_async(
+        port,
+        0xC000,
+        bio_sensor_read_callback,
+        (void *)port
+    );
 }
 
-const char *format_joypad_rumble(bool supported, bool enabled)
+void bio_sensor_read_stop(joypad_port_t port)
 {
-    if (!supported) return "Unavailable";
-    if (enabled) return "Active";
-    return "Idle";
+    bio_sensor_readers[port].state = BIO_SENSOR_STATE_IDLE;
+    bio_sensor_readers[port].period_counter = 0;
 }
 
-void print_joypad_inputs(joypad_inputs_t inputs)
+void bio_sensor_read_start(joypad_port_t port)
 {
-    printf("Stick: %+04d,%+04d C-Stick: %+04d,%+04d L-Trig:%03d R-Trig:%03d\n", inputs.stick_x, inputs.stick_y, inputs.cstick_x, inputs.cstick_y, inputs.analog_l, inputs.analog_r);
-    printf("A:%d B:%d X:%d Y:%d L:%d R:%d Z:%d Start:%d\n", inputs.a, inputs.b, inputs.x, inputs.y, inputs.l, inputs.r, inputs.z, inputs.start);
-    printf("D-U:%d D-D:%d D-L:%d D-R:%d C-U:%d C-D:%d C-L:%d C-R:%d\n", inputs.d_up, inputs.d_down, inputs.d_left, inputs.d_right, inputs.c_up, inputs.c_down, inputs.c_left, inputs.c_right);
+    volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
+    memset((void *)reader, 0, sizeof(*reader));
+    reader->state = BIO_SENSOR_STATE_COUNTING;
+    reader->period_start_ticks = timer_ticks();
+    joybus_n64_accessory_read_async(
+        port,
+        0xC000,
+        bio_sensor_read_callback,
+        (void *)port
+    );
+}
+
+float bio_sensor_read_pulse(joypad_port_t port)
+{
+    volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
+    size_t num_periods = reader->period_counter;
+    if (num_periods > BEAT_PERIODS_COUNT) num_periods = BEAT_PERIODS_COUNT;
+    if (num_periods == 0) return 0.0;
+    float sum = 0.0;
+    for (size_t i = 0; i < num_periods; i++)
+    {
+        sum += reader->beats_per_period[i];
+    }
+    return (sum / (float)num_periods) * BEAT_PERIODS_PER_MINUTE;
+}
+
+char * format_reader_state(bio_sensor_state_t state)
+{
+    switch (state)
+    {
+        case BIO_SENSOR_STATE_IDLE:     return "Idle    ";
+        case BIO_SENSOR_STATE_COUNTING: return "Counting";
+        case BIO_SENSOR_STATE_PULSING:  return "Pulsing ";
+        default:                        return "Unknown ";
+    }
 }
 
 int main(void)
@@ -47,11 +141,13 @@ int main(void)
     debug_init_isviewer();
 
     joypad_init();
+    joypad_scan();
 
+    joypad_style_t prev_styles[JOYPAD_PORT_COUNT] = {0};
+    float pulses[JOYPAD_PORT_COUNT] = {0};
     joypad_style_t style;
-    bool rumble_supported;
-    bool rumble_active;
-    joypad_inputs_t inputs;
+    joypad_inputs_t pressed;
+    bio_sensor_state_t state;
 
     console_init();
     console_set_render_mode(RENDER_MANUAL);
@@ -61,33 +157,50 @@ int main(void)
     {
         console_clear();
 
-        printf("N64/GCN Joypad Subsystem Test\n\n");
+        printf("Bio Sensor Test\n");
+        printf("Connect up to 4 controllers with Bio Sensors\n");
+        printf("Press A to start reading the pulse rate\n");
+        printf("\n");
 
         joypad_scan();
+        disable_interrupts();
+        JOYPAD_PORT_FOR_EACH (port)
+        {
+            pulses[port] = bio_sensor_read_pulse(port);
+        }
+        enable_interrupts();
 
-        for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
+        JOYPAD_PORT_FOR_EACH (port)
         {
             style = joypad_get_style(port);
-            rumble_supported = joypad_get_rumble_supported(port);
-            rumble_active = joypad_get_rumble_active(port);
-            inputs = joypad_inputs(port);
-
-            if (rumble_supported)
+            pressed = joypad_pressed(port);
+            if (style != JOYPAD_STYLE_N64 && prev_styles[port] == JOYPAD_STYLE_N64)
             {
-                if (inputs.a && !rumble_active)
-                {
-                    joypad_set_rumble_active(port, true);
-                }
-                else if (!inputs.a && rumble_active)
-                {
-                    joypad_set_rumble_active(port, false);
-                }
+                bio_sensor_read_stop(port);
             }
 
             printf("Port %d ", port + 1);
-            printf("Style: %s ", format_joypad_style(style));
-            printf("Rumble: %s\n", format_joypad_rumble(rumble_supported, rumble_active));
-            print_joypad_inputs(inputs);
+            if (style == JOYPAD_STYLE_N64)
+            {
+                state = bio_sensor_readers[port].state;
+                if (state)
+                {
+                    printf("%s", format_reader_state(state));
+                    printf("BPM: %f", pulses[port]);
+                }
+                else
+                {
+                    printf("Pulse Reading Stopped!");
+                    if (pressed.a)
+                    {
+                        bio_sensor_read_start(port);
+                    }
+                }
+            } 
+            else
+            {
+                printf("Bio Sensor Not Supported");
+            }
             printf("\n");
         }
 
