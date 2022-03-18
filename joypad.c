@@ -557,6 +557,8 @@ void joypad_init(void)
         joypad_device_reset(port, JOYBUS_IDENTIFIER_UNKNOWN);
     }
     joypad_identify(true);
+    joypad_read_async();
+    while (joypad_read_pending) { /* Spinlock */ }
     register_VI_handler(joypad_vi_interrupt_callback);
 }
 
