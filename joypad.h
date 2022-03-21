@@ -161,6 +161,25 @@ typedef struct __attribute__((packed)) joypad_inputs_s
     unsigned analog_r : 8;
 } joypad_inputs_t;
 
+typedef struct joypad_mouse_s
+{
+    unsigned a : 1;
+    unsigned b : 1;
+    unsigned   : 14;
+    int8_t rel_x;
+    int8_t rel_y;
+    uint16_t abs_x;
+    uint16_t abs_y;
+} joypad_mouse_t;
+
+typedef struct joypad_rect_s
+{
+    uint16_t min_x;
+    uint16_t min_y;
+    uint16_t max_x;
+    uint16_t max_y;
+} joypad_rect_t;
+
 void joypad_init(void);
 void joypad_close(void);
 void joypad_identify(bool reset);
@@ -175,6 +194,10 @@ joypad_inputs_t joypad_inputs(joypad_port_t port);
 joypad_inputs_t joypad_pressed(joypad_port_t port);
 joypad_inputs_t joypad_released(joypad_port_t port);
 joypad_inputs_t joypad_held(joypad_port_t port);
+
+joypad_mouse_t joypad_mouse(joypad_port_t port);
+void joypad_mouse_move(joypad_port_t port, unsigned x, unsigned y);
+void joypad_mouse_limit(joypad_port_t port, joypad_rect_t rect);
 
 #ifdef __cplusplus
 }

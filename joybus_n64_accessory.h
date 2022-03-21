@@ -34,6 +34,7 @@ typedef enum
     JOYBUS_N64_ACCESSORY_TYPE_RUMBLE_PAK,
     JOYBUS_N64_ACCESSORY_TYPE_TRANSFER_PAK, // TODO
     JOYBUS_N64_ACCESSORY_TYPE_BIO_SENSOR, // TODO
+    JOYBUS_N64_ACCESSORY_TYPE_UNKNOWN = 0xFF,
 } joybus_n64_accessory_type_t;
 
 uint16_t joybus_n64_accessory_addr_checksum(uint16_t addr);
