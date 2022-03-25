@@ -589,10 +589,9 @@ void joypad_scan(void)
     // Bail early if the joypads have not been read since last call
     static uint64_t prev_read_count = 0;
     uint64_t read_count = joypad_read_count;
-    if (prev_read_count <= read_count) return;
+    if (prev_read_count == read_count) return;
     prev_read_count = read_count;
 
-    uint64_t scan_id;
     uint8_t output[JOYBUS_BLOCK_SIZE];
     joypad_gcn_origin_t origins[JOYPAD_PORT_COUNT];
     joybus_identifier_t identifiers[JOYPAD_PORT_COUNT];
