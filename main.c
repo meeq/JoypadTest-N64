@@ -11,10 +11,10 @@
 #include "joybus_n64_accessory.h"
 #include "joypad.h"
 
-#define BEAT_PERIODS_COUNT 60
-#define BEAT_PERIOD_INTERVAL_TICKS TICKS_PER_SECOND
-#define TICKS_PER_MINUTE (TICKS_PER_SECOND * 60)
-#define BEAT_PERIODS_PER_MINUTE ((float)TICKS_PER_MINUTE / (float)BEAT_PERIOD_INTERVAL_TICKS)
+#define BEAT_PERIODS_COUNT 16
+#define BEAT_PERIODS_MINIMUM 8
+#define BEAT_PERIOD_INTERVAL_TICKS (TICKS_PER_SECOND / 2)
+#define BEAT_PERIODS_PER_MINUTE (60 * 2)
 
 typedef enum
 {
@@ -35,6 +35,23 @@ typedef struct
 
 static volatile bio_sensor_reader_t bio_sensor_readers[JOYPAD_PORT_COUNT] = {0};
 
+static void bio_sensor_period_tick(joypad_port_t port)
+{
+    int64_t now_ticks = timer_ticks();
+    volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
+    unsigned period_beats = reader->period_beats;
+    if (reader->period_start_ticks + BEAT_PERIOD_INTERVAL_TICKS < now_ticks)
+    {
+        unsigned cursor = reader->period_cursor;
+        reader->beats_per_period[cursor++] = period_beats;
+        if (cursor >= BEAT_PERIODS_COUNT) cursor = 0;
+        reader->period_cursor = cursor;
+        reader->period_beats = 0;
+        reader->period_counter++;
+        reader->period_start_ticks = now_ticks;
+    }
+}
+
 void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
@@ -52,21 +69,7 @@ void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
         return;
     }
 
-    int64_t now_ticks = timer_ticks();
-    unsigned period_beats = reader->period_beats;
-    if (reader->period_start_ticks + BEAT_PERIOD_INTERVAL_TICKS < now_ticks)
-    {
-        if (period_beats > 0)
-        {
-            unsigned cursor = reader->period_cursor;
-            reader->beats_per_period[cursor++] = reader->period_beats;
-            if (cursor >= BEAT_PERIODS_COUNT) cursor = 0;
-            reader->period_cursor = cursor;
-            reader->period_beats = 0;
-            reader->period_counter++;
-        }
-        reader->period_start_ticks = now_ticks;
-    }
+    bio_sensor_period_tick(port);
 
     uint8_t byte = recv_cmd->data[0];
     bio_sensor_state_t next_state = BIO_SENSOR_STATE_IDLE;
@@ -77,7 +80,7 @@ void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
         current_state == BIO_SENSOR_STATE_PULSING &&
         next_state == BIO_SENSOR_STATE_COUNTING
     ) {
-        reader->period_beats = period_beats + 1;
+        reader->period_beats += 1;
     }
     reader->state = next_state;
 
@@ -97,6 +100,7 @@ void bio_sensor_read_stop(joypad_port_t port)
 
 void bio_sensor_read_start(joypad_port_t port)
 {
+    if (bio_sensor_readers[port].state != BIO_SENSOR_STATE_IDLE) return;
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
     memset((void *)reader, 0, sizeof(*reader));
     reader->state = BIO_SENSOR_STATE_COUNTING;
@@ -109,18 +113,18 @@ void bio_sensor_read_start(joypad_port_t port)
     );
 }
 
-float bio_sensor_read_pulse(joypad_port_t port)
+unsigned bio_sensor_read_pulse(joypad_port_t port)
 {
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
-    size_t num_periods = reader->period_counter;
+    float num_periods = reader->period_counter;
+    if (num_periods < BEAT_PERIODS_MINIMUM) return 0.0;
     if (num_periods > BEAT_PERIODS_COUNT) num_periods = BEAT_PERIODS_COUNT;
-    if (num_periods == 0) return 0.0;
     float sum = 0.0;
     for (size_t i = 0; i < num_periods; i++)
     {
         sum += reader->beats_per_period[i];
     }
-    return (sum / (float)num_periods) * BEAT_PERIODS_PER_MINUTE;
+    return (sum / num_periods) * BEAT_PERIODS_PER_MINUTE;
 }
 
 char * format_reader_state(bio_sensor_state_t state)
@@ -134,6 +138,22 @@ char * format_reader_state(bio_sensor_state_t state)
     }
 }
 
+void bio_sensor_fake_pulse(joypad_port_t port, bool pulsing)
+{
+    volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
+    bio_sensor_period_tick(port);
+    bio_sensor_state_t next_state = pulsing
+        ? BIO_SENSOR_STATE_PULSING
+        : BIO_SENSOR_STATE_COUNTING;
+    if (
+        reader->state == BIO_SENSOR_STATE_PULSING &&
+        next_state == BIO_SENSOR_STATE_COUNTING
+    ) {
+        reader->period_beats += 1;
+    }
+    reader->state = next_state;
+}
+
 int main(void)
 {
     timer_init();
@@ -143,9 +163,7 @@ int main(void)
     joypad_init();
     joypad_scan();
 
-    joypad_style_t prev_styles[JOYPAD_PORT_COUNT] = {0};
-    float pulses[JOYPAD_PORT_COUNT] = {0};
-    joypad_style_t style;
+    unsigned pulses[JOYPAD_PORT_COUNT] = {0};
     joypad_inputs_t pressed;
     bio_sensor_state_t state;
 
@@ -159,7 +177,6 @@ int main(void)
 
         printf("Bio Sensor Test\n");
         printf("Connect up to 4 controllers with Bio Sensors\n");
-        printf("Press A to start reading the pulse rate\n");
         printf("\n");
 
         joypad_scan();
@@ -172,34 +189,32 @@ int main(void)
 
         JOYPAD_PORT_FOR_EACH (port)
         {
-            style = joypad_get_style(port);
             pressed = joypad_pressed(port);
-            if (style != JOYPAD_STYLE_N64 && prev_styles[port] == JOYPAD_STYLE_N64)
-            {
-                bio_sensor_read_stop(port);
-            }
+            state = bio_sensor_readers[port].state;
 
             printf("Port %d ", port + 1);
-            if (style == JOYPAD_STYLE_N64)
+            if (state != BIO_SENSOR_STATE_IDLE)
             {
-                state = bio_sensor_readers[port].state;
-                if (state)
+                printf("%s ", format_reader_state(state));
+                printf("BPM: %d", pulses[port]);
+                bio_sensor_fake_pulse(port, pressed.z);
+                if (pressed.b)
                 {
-                    printf("%s", format_reader_state(state));
-                    printf("BPM: %f", pulses[port]);
+                    bio_sensor_read_stop(port);
                 }
-                else
-                {
-                    printf("Pulse Reading Stopped!");
-                    if (pressed.a)
-                    {
-                        bio_sensor_read_start(port);
-                    }
-                }
-            } 
+            }
             else
             {
-                printf("Bio Sensor Not Supported");
+                printf("Press A to start reading pulse");
+                if (pressed.a)
+                {
+                    bio_sensor_read_start(port);
+                }
+                printf(" or press Z to simulate");
+                if (pressed.z)
+                {
+                    bio_sensor_fake_pulse(port, true);
+                }
             }
             printf("\n");
         }
