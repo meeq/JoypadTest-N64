@@ -57,7 +57,7 @@ int joybus_n64_accessory_data_crc_compare(const uint8_t *data, uint8_t data_crc)
 
 void joybus_n64_accessory_read_async(int port, uint16_t addr, joybus_callback_t callback, void *ctx)
 {
-    assert(port >= 0 && port < 4);
+    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
     size_t i = port;
 
@@ -81,7 +81,7 @@ void joybus_n64_accessory_read_async(int port, uint16_t addr, joybus_callback_t 
 
 void joybus_n64_accessory_write_async(int port, uint16_t addr, uint8_t *data, joybus_callback_t callback, void *ctx)
 {
-    assert(port >= 0 && port < 4);
+    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
     size_t i = port;
 

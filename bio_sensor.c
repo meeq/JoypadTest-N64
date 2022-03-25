@@ -10,14 +10,13 @@
 
 #include "joybus_commands.h"
 #include "joybus_n64_accessory.h"
-#include "joypad.h"
 
 #include "bio_sensor.h"
 
-#define BEAT_PERIODS_COUNT 16
-#define BEAT_PERIODS_MINIMUM 8
-#define BEAT_PERIOD_INTERVAL_TICKS (TICKS_PER_SECOND / 2)
-#define BEAT_PERIODS_PER_MINUTE (60 * 2)
+#define BIO_SENSOR_PERIODS_MINIMUM 8
+#define BIO_SENSOR_PERIODS_MAXIMUM 16
+#define BIO_SENSOR_PERIOD_INTERVAL_TICKS (TICKS_PER_SECOND / 2)
+#define BIO_SENSOR_PERIODS_PER_MINUTE (60 * 2)
 
 typedef enum
 {
@@ -28,17 +27,16 @@ typedef enum
 
 typedef struct
 {
-    bool simulated;
     bool read_pending;
     bio_sensor_state_t state;
     int64_t period_start_ticks;
     unsigned period_beats;
     unsigned period_cursor;
     unsigned period_counter;
-    unsigned beats_per_period[BEAT_PERIODS_COUNT];
+    unsigned beats_per_period[BIO_SENSOR_PERIODS_MAXIMUM];
 } bio_sensor_reader_t;
 
-static volatile bio_sensor_reader_t bio_sensor_readers[JOYPAD_PORT_COUNT] = {0};
+static volatile bio_sensor_reader_t bio_sensor_readers[JOYBUS_N64_ACCESSORY_PORT_COUNT] = {0};
 
 static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
 {
@@ -49,45 +47,33 @@ static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
     // Ignore this read if this sensor has been stopped
     if (current_state == BIO_SENSOR_STATE_STOPPED) return;
 
-    uint8_t sensor_data;
-    if (reader->simulated)
+    const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
+    int crc_status = joybus_n64_accessory_data_crc_compare(recv_cmd->data, recv_cmd->data_crc);
+    if (crc_status != JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK)
     {
-        joypad_inputs_t inputs = joypad_inputs(port);
-        sensor_data = inputs.z ? 0x00 : 0x03;
-    }
-    else
-    {
-        const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
-        int crc_status = joybus_n64_accessory_data_crc_compare(recv_cmd->data, recv_cmd->data_crc);
-        if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK)
+        // Stop reading if the Bio Sensor has been disconnected
+        if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_DISCONNECTED)
         {
-            sensor_data = recv_cmd->data[0];
+            bio_sensor_read_stop(port);
         }
-        else
-        {
-            // Stop reading if the Bio Sensor has been disconnected
-            if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_DISCONNECTED)
-            {
-                bio_sensor_read_stop(port);
-            }
-            // Skip this read if it fails the CRC check
-            reader->read_pending = false;
-            return;
-        }
+        // Skip this read if it fails the CRC check
+        reader->read_pending = false;
+        return;
     }
 
     int64_t now_ticks = timer_ticks();
-    if (reader->period_start_ticks + BEAT_PERIOD_INTERVAL_TICKS < now_ticks)
+    if (reader->period_start_ticks + BIO_SENSOR_PERIOD_INTERVAL_TICKS < now_ticks)
     {
         unsigned cursor = reader->period_cursor;
         reader->beats_per_period[cursor++] = reader->period_beats;
-        if (cursor >= BEAT_PERIODS_COUNT) cursor = 0;
+        if (cursor >= BIO_SENSOR_PERIODS_MAXIMUM) cursor = 0;
         reader->period_cursor = cursor;
         reader->period_beats = 0;
         reader->period_counter++;
         reader->period_start_ticks = now_ticks;
     }
 
+    uint8_t sensor_data = recv_cmd->data[0];
     bio_sensor_state_t next_state = BIO_SENSOR_STATE_STOPPED;
     if (sensor_data == 0x00) next_state = BIO_SENSOR_STATE_PULSING;
     if (sensor_data == 0x03) next_state = BIO_SENSOR_STATE_RESTING;
@@ -104,7 +90,7 @@ static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
 
 static void bio_sensor_vi_interrupt_callback(void)
 {
-    JOYPAD_PORT_FOR_EACH (port)
+    for (int port = 0; port < JOYBUS_N64_ACCESSORY_PORT_COUNT; ++port)
     {
         if (
             bio_sensor_readers[port].read_pending == false &&
@@ -132,45 +118,54 @@ void bio_sensor_close(void)
     unregister_VI_handler(bio_sensor_vi_interrupt_callback);
 }
 
-void bio_sensor_read_start(int port, bool simulated)
+void bio_sensor_read_start(int port)
 {
+    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
     if (bio_sensor_readers[port].state != BIO_SENSOR_STATE_STOPPED) return;
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
     memset((void *)reader, 0, sizeof(*reader));
     reader->state = BIO_SENSOR_STATE_RESTING;
     reader->period_start_ticks = timer_ticks();
-    reader->simulated = simulated;
 }
 
 void bio_sensor_read_stop(int port)
 {
+    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
     memset((void *)reader, 0, sizeof(*reader));
 }
 
 bool bio_sensor_get_active(int port)
 {
+    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
     return bio_sensor_readers[port].state != BIO_SENSOR_STATE_STOPPED;
+}
+
+bool bio_sensor_get_pulsing(int port)
+{
+    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
+    return bio_sensor_readers[port].state == BIO_SENSOR_STATE_PULSING;
 }
 
 int bio_sensor_get_bpm(int port)
 {
+    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
     float num_periods = reader->period_counter;
-    if (num_periods < BEAT_PERIODS_MINIMUM)
+    if (num_periods < BIO_SENSOR_PERIODS_MINIMUM)
     {
         // Prevent divide-by-zero
         return 0;
     }
-    if (num_periods > BEAT_PERIODS_COUNT) 
+    if (num_periods > BIO_SENSOR_PERIODS_MAXIMUM) 
     {
         // Prevent reads past the end of beats_per_period
-        num_periods = BEAT_PERIODS_COUNT;
+        num_periods = BIO_SENSOR_PERIODS_MAXIMUM;
     }
     float sum = 0.0;
     for (size_t i = 0; i < num_periods; i++)
     {
         sum += reader->beats_per_period[i];
     }
-    return (sum / num_periods) * BEAT_PERIODS_PER_MINUTE;
+    return (sum / num_periods) * BIO_SENSOR_PERIODS_PER_MINUTE;
 }

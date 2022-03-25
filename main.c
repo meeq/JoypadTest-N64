@@ -1,7 +1,7 @@
 /**
  * @file main.c
  * @author Christopher Bonhage (me@christopherbonhage.com)
- * @brief N64 test ROM for Joypad subsystem
+ * @brief N64 test ROM for Bio Sensor subsystem
  */
 
 #include <string.h>
@@ -39,13 +39,12 @@ int main(void)
         console_clear();
         joypad_scan();
 
-        printf("Bio Sensor Test v0.7\n");
+        printf("Bio Sensor Test v0.8\n");
         printf("A silly experiment by Meeq\n");
         printf("Connect up to 4 controllers with Bio Sensors\n");
         printf("\n");
         printf("Press A to start reading the Bio Sensor\n");
         printf("Press B to stop reading the Bio Sensor\n");
-        printf("Press Z to simulate a pulse without a Bio Sensor\n");
         printf("\n");
 
         JOYPAD_PORT_FOR_EACH (port)
@@ -62,22 +61,21 @@ int main(void)
                     bio_sensor_read_stop(port);
                     printf(" (Stopping)");
                 }
+                else if (bio_sensor_get_pulsing(port))
+                {
+                    printf(" (Pulsing)");
+                }
                 else
                 {
-                    printf(" (Active)");
+                    printf(" (Resting)");
                 }
             }
             else
             {
                 if (pressed.a)
                 {
-                    bio_sensor_read_start(port, false);
+                    bio_sensor_read_start(port);
                     printf(" (Starting)");
-                }
-                else if (pressed.z)
-                {
-                    bio_sensor_read_start(port, true);
-                    printf(" (Simulating)");
                 }
                 else
                 {
