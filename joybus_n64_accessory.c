@@ -48,9 +48,11 @@ uint8_t joybus_n64_accessory_data_checksum(const uint8_t *data)
 int joybus_n64_accessory_data_crc_compare(const uint8_t *data, uint8_t data_crc)
 {
     uint8_t expected_crc = joybus_n64_accessory_data_checksum(data);
-    if (expected_crc == data_crc) return JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK;
-    if (expected_crc == (data_crc ^ 0xFF)) return JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_NULL;
-    return JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_BAD;
+    if (expected_crc == data_crc) 
+        return JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK;
+    if (expected_crc == (data_crc ^ 0xFF))
+        return JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_DISCONNECTED;
+    return JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_MISMATCH;
 }
 
 void joybus_n64_accessory_read_async(int port, uint16_t addr, joybus_callback_t callback, void *ctx)
