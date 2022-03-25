@@ -41,16 +41,34 @@ typedef enum
     iterator_token += 1 \
 )
 
-/** @brief Joypad Style Types */
+/** @brief Joypad Styles Enumeration */
 typedef enum
 {
     /** @brief Unsupported Joypad Style */
     JOYPAD_STYLE_NONE = 0,
-    /** @brief Nintendo 64 Controller Style */
+    /**
+     * @brief Nintendo 64 Joypad Style.
+     * 
+     * The N64 controller has fewer and different buttons than
+     * a GameCube controller: no X or Y buttons, no analog triggers,
+     * and four C-directional buttons instead of an analog C-stick.
+     */
     JOYPAD_STYLE_N64,
-    /** @brief GameCube Controller Style */
+    /**
+     * @brief GameCube Joypad Style.
+     * 
+     * The GameCube controller has more and different buttons
+     * than a Nintendo 64 controller: X & Y buttons, analog
+     * L & R triggers, and an analog C-stick instead of buttons.
+     */
     JOYPAD_STYLE_GCN,
-    /** @brief Mouse Style */
+    /**
+     * @brief Mouse Joypad Style.
+     * 
+     * The N64 Mouse peripheral is read like a controller, but
+     * only has A & B buttons, and the analog stick reports
+     * the relative value since it was last read.
+     */
     JOYPAD_STYLE_MOUSE,
 } joypad_style_t;
 
@@ -161,25 +179,6 @@ typedef struct __attribute__((packed)) joypad_inputs_s
     unsigned analog_r : 8;
 } joypad_inputs_t;
 
-typedef struct joypad_mouse_s
-{
-    unsigned a : 1;
-    unsigned b : 1;
-    unsigned   : 14;
-    int8_t rel_x;
-    int8_t rel_y;
-    uint16_t abs_x;
-    uint16_t abs_y;
-} joypad_mouse_t;
-
-typedef struct joypad_rect_s
-{
-    uint16_t min_x;
-    uint16_t min_y;
-    uint16_t max_x;
-    uint16_t max_y;
-} joypad_rect_t;
-
 void joypad_init(void);
 void joypad_close(void);
 void joypad_identify(bool reset);
@@ -194,10 +193,6 @@ joypad_inputs_t joypad_inputs(joypad_port_t port);
 joypad_inputs_t joypad_pressed(joypad_port_t port);
 joypad_inputs_t joypad_released(joypad_port_t port);
 joypad_inputs_t joypad_held(joypad_port_t port);
-
-joypad_mouse_t joypad_mouse(joypad_port_t port);
-void joypad_mouse_move(joypad_port_t port, unsigned x, unsigned y);
-void joypad_mouse_limit(joypad_port_t port, joypad_rect_t rect);
 
 #ifdef __cplusplus
 }

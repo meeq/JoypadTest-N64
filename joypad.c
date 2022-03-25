@@ -46,8 +46,6 @@ typedef enum
     JOYPAD_RUMBLE_METHOD_GCN_CONTROLLER,
 } joypad_rumble_method_t;
 
-#define JOYPAD_MOUSE_BOUNDS_INIT ((joypad_rect_t){ 0, 0, 320, 240 })
-
 typedef struct joypad_gcn_origin_s
 {
     uint8_t stick_x;
@@ -64,7 +62,6 @@ typedef union
 {
     uint64_t raw;
     joypad_inputs_t inputs;
-    joypad_mouse_t mouse;
     struct
     {
         uint64_t digital : 16;
@@ -125,7 +122,6 @@ static volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT] = {0};
 
 // "Cold" (stable) global state
 static joypad_device_cold_t joypad_devices_cold[JOYPAD_PORT_COUNT] = {0};
-static joypad_rect_t joypad_mouse_bounds[JOYPAD_PORT_COUNT] = {0};
 
 static void joypad_device_reset(joypad_port_t port, joybus_identifier_t identifier)
 {
@@ -565,7 +561,6 @@ void joypad_init(void)
     JOYPAD_PORT_FOR_EACH (port)
     {
         joypad_device_reset(port, JOYBUS_IDENTIFIER_UNKNOWN);
-        joypad_mouse_bounds[port] = JOYPAD_MOUSE_BOUNDS_INIT;
     }
     joypad_identify(true);
     joypad_read_async();
@@ -602,6 +597,7 @@ void joypad_scan(void)
     joypad_gcn_origin_t origins[JOYPAD_PORT_COUNT];
     joybus_identifier_t identifiers[JOYPAD_PORT_COUNT];
 
+    // Take a snapshot of the current "hot" state
     disable_interrupts();
     memcpy(output, (void *)joypad_read_output, sizeof(output));
     memcpy(origins, (void *)joypad_origins_hot, sizeof(origins));
@@ -637,58 +633,46 @@ void joypad_scan(void)
             recv_cmd = (void *)&output[i];
             i += sizeof(*recv_cmd);
 
-            joypad_style_t style;
-            previous = joypad_devices_cold[port].current;
+            joypad_style_t style = JOYPAD_STYLE_N64;
+            // N64 Mouse uses the same read command as a Controller
             if (identifiers[port] == JOYBUS_IDENTIFIER_N64_MOUSE)
             {
                 style = JOYPAD_STYLE_MOUSE;
-
-                joypad_rect_t bounds = joypad_mouse_bounds[port];
-                unsigned abs_x = previous.mouse.abs_x + recv_cmd->stick_x;
-                unsigned abs_y = previous.mouse.abs_y + recv_cmd->stick_y;
-
-                current.mouse = (joypad_mouse_t){
-                    .a = recv_cmd->a,
-                    .b = recv_cmd->b,
-                    .rel_x = recv_cmd->stick_x,
-                    .rel_y = recv_cmd->stick_y,
-                    .abs_x = CLAMP(abs_x, bounds.min_y, bounds.max_y),
-                    .abs_y = CLAMP(abs_y, bounds.min_y, bounds.max_y),
-                };
             }
-            else
-            {
-                style = JOYPAD_STYLE_N64;
 
-                // Emulate analog C-stick based on digital C-buttons
-                int cstick_x = (recv_cmd->c_right - recv_cmd->c_left) * JOYBUS_RANGE_GCN_CSTICK_MAX;
-                int cstick_y = (recv_cmd->c_down - recv_cmd->c_up) * JOYBUS_RANGE_GCN_CSTICK_MAX;
+            // Emulate analog C-stick based on digital C-buttons
+            int c_x_direction = recv_cmd->c_right - recv_cmd->c_left;
+            int c_y_direction = recv_cmd->c_down - recv_cmd->c_up;
+            int cstick_x = c_x_direction * JOYBUS_RANGE_GCN_CSTICK_MAX;
+            int cstick_y = c_y_direction * JOYBUS_RANGE_GCN_CSTICK_MAX;
+            int analog_l = recv_cmd->l ? JOYBUS_RANGE_GCN_TRIGGER_MAX : 0;
+            int analog_r = recv_cmd->r ? JOYBUS_RANGE_GCN_TRIGGER_MAX : 0;
 
-                current.inputs = (joypad_inputs_t){
-                    .a = recv_cmd->a,
-                    .b = recv_cmd->b,
-                    .z = recv_cmd->z,
-                    .start = recv_cmd->start,
-                    .d_up = recv_cmd->d_up,
-                    .d_down = recv_cmd->d_down,
-                    .d_left = recv_cmd->d_left,
-                    .d_right = recv_cmd->d_right,
-                    .y = 0,
-                    .x = 0,
-                    .l = recv_cmd->l,
-                    .r = recv_cmd->r,
-                    .c_up = recv_cmd->c_up,
-                    .c_down = recv_cmd->c_down,
-                    .c_left = recv_cmd->c_left,
-                    .c_right = recv_cmd->c_right,
-                    .stick_x = recv_cmd->stick_x,
-                    .stick_y = recv_cmd->stick_y,
-                    .cstick_x = cstick_x,
-                    .cstick_y = cstick_y,
-                    .analog_l = recv_cmd->l ? JOYBUS_RANGE_GCN_TRIGGER_MAX : 0,
-                    .analog_r = recv_cmd->r ? JOYBUS_RANGE_GCN_TRIGGER_MAX : 0,
-                };
-            }
+            previous = joypad_devices_cold[port].current;
+            current.inputs = (joypad_inputs_t){
+                .a = recv_cmd->a,
+                .b = recv_cmd->b,
+                .z = recv_cmd->z,
+                .start = recv_cmd->start,
+                .d_up = recv_cmd->d_up,
+                .d_down = recv_cmd->d_down,
+                .d_left = recv_cmd->d_left,
+                .d_right = recv_cmd->d_right,
+                .y = 0,
+                .x = 0,
+                .l = recv_cmd->l,
+                .r = recv_cmd->r,
+                .c_up = recv_cmd->c_up,
+                .c_down = recv_cmd->c_down,
+                .c_left = recv_cmd->c_left,
+                .c_right = recv_cmd->c_right,
+                .stick_x = recv_cmd->stick_x,
+                .stick_y = recv_cmd->stick_y,
+                .cstick_x = cstick_x,
+                .cstick_y = cstick_y,
+                .analog_l = analog_l,
+                .analog_r = analog_r,
+            };
 
             joypad_devices_cold[port] = (joypad_device_cold_t){
                 .style = style,
@@ -705,12 +689,12 @@ void joypad_scan(void)
             if (recv_cmd->check_origin) check_origins = true;
 
             // Bias the analog values with the corresponding origin
-            const int stick_x = CLAMP_ANALOG_AXIS(recv_cmd->stick_x - origins[port].stick_x);
-            const int stick_y = CLAMP_ANALOG_AXIS(recv_cmd->stick_y - origins[port].stick_y);
-            const int cstick_x = CLAMP_ANALOG_AXIS(recv_cmd->cstick_x - origins[port].cstick_x);
-            const int cstick_y = CLAMP_ANALOG_AXIS(recv_cmd->cstick_y - origins[port].cstick_y);
-            const int analog_l = CLAMP_ANALOG_TRIGGER(recv_cmd->analog_l - origins[port].analog_l);
-            const int analog_r = CLAMP_ANALOG_TRIGGER(recv_cmd->analog_r - origins[port].analog_r);
+            int stick_x = CLAMP_ANALOG_AXIS(recv_cmd->stick_x - origins[port].stick_x);
+            int stick_y = CLAMP_ANALOG_AXIS(recv_cmd->stick_y - origins[port].stick_y);
+            int cstick_x = CLAMP_ANALOG_AXIS(recv_cmd->cstick_x - origins[port].cstick_x);
+            int cstick_y = CLAMP_ANALOG_AXIS(recv_cmd->cstick_y - origins[port].cstick_y);
+            int analog_l = CLAMP_ANALOG_TRIGGER(recv_cmd->analog_l - origins[port].analog_l);
+            int analog_r = CLAMP_ANALOG_TRIGGER(recv_cmd->analog_r - origins[port].analog_r);
 
             static const int cstick_threshold = JOYBUS_RANGE_GCN_CSTICK_MAX / 2;
 
@@ -818,28 +802,4 @@ joypad_inputs_t joypad_held(joypad_port_t port)
     const uint64_t held = current.digital & previous.digital;
     const joypad_data_t result = {.digital = held, .analog = current.analog};
     return result.inputs;
-}
-
-joypad_mouse_t joypad_mouse(joypad_port_t port)
-{
-    return joypad_devices_cold[port].current.mouse;
-}
-
-void joypad_mouse_set_position(joypad_port_t port, unsigned x, unsigned y)
-{
-    if (joypad_devices_cold[port].style == JOYPAD_STYLE_MOUSE)
-    {
-        joypad_mouse_t mouse = joypad_devices_cold[port].current.mouse;
-        joypad_rect_t bounds = joypad_mouse_bounds[port];
-        mouse.abs_x = CLAMP(x, bounds.min_x, bounds.max_x);
-        mouse.abs_y = CLAMP(y, bounds.min_y, bounds.max_y);
-        joypad_devices_cold[port].current.mouse = mouse;
-    }
-}
-
-void joypad_mouse_set_bounds(joypad_port_t port, joypad_rect_t bounds)
-{
-    joypad_mouse_bounds[port] = bounds;
-    joypad_mouse_t mouse = joypad_devices_cold[port].current.mouse;
-    joypad_mouse_set_position(port, mouse.abs_x, mouse.abs_y);
 }
