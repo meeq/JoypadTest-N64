@@ -39,9 +39,8 @@ int main(void)
         console_clear();
         joypad_scan();
 
-        printf("Bio Sensor Test v0.8\n");
-        printf("A silly experiment by Meeq\n");
-        printf("Connect up to 4 controllers with Bio Sensors\n");
+        printf("Bio Sensor Subsystem Test\n");
+        printf("Connect up to 4 controllers with Bio Sensor accessories\n");
         printf("\n");
         printf("Press A to start reading the Bio Sensor\n");
         printf("Press B to stop reading the Bio Sensor\n");
