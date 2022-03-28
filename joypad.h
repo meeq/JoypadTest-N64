@@ -72,6 +72,17 @@ typedef enum
     JOYPAD_STYLE_MOUSE,
 } joypad_style_t;
 
+typedef enum
+{
+    JOYPAD_N64_ACCESSORY_TYPE_NONE = 0,
+    JOYPAD_N64_ACCESSORY_TYPE_UNKNOWN,
+    JOYPAD_N64_ACCESSORY_TYPE_CONTROLLER_PAK,
+    JOYPAD_N64_ACCESSORY_TYPE_RUMBLE_PAK,
+    JOYPAD_N64_ACCESSORY_TYPE_TRANSFER_PAK,
+    JOYPAD_N64_ACCESSORY_TYPE_BIO_SENSOR,
+    JOYPAD_N64_ACCESSORY_TYPE_SNAP_STATION,
+} joypad_n64_accessory_type_t;
+
 /** @brief Common Joypad Inputs State Structure */
 typedef struct __attribute__((packed)) joypad_inputs_s
 {

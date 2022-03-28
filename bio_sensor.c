@@ -5,6 +5,7 @@
  * @ingroup bio_sensor
  */
 
+#include <assert.h>
 #include <string.h>
 #include <libdragon.h>
 

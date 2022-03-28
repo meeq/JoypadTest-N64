@@ -5,8 +5,8 @@
  * @ingroup joypad 
  */
 
+#include <assert.h>
 #include <string.h>
-#include <libdragon.h>
 
 #include "joybus_commands.h"
 #include "joybus_n64_accessory.h"

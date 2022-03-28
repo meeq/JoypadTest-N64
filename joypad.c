@@ -42,7 +42,7 @@ typedef enum
 {
     JOYPAD_RUMBLE_METHOD_NONE = 0,
     JOYPAD_RUMBLE_METHOD_N64_RUMBLE_PAK,
-    JOYPAD_RUMBLE_METHOD_N64_TRANSFER_PAK, // Not yet implemented
+    JOYPAD_RUMBLE_METHOD_N64_TRANSFER_PAK_MBC5, // Not yet implemented
     JOYPAD_RUMBLE_METHOD_GCN_CONTROLLER,
 } joypad_rumble_method_t;
 
@@ -93,7 +93,7 @@ typedef struct joypad_device_hot_s
     joypad_rumble_method_t rumble_method;
     bool rumble_active;
     // N64-specific fields
-    joybus_n64_accessory_type_t accessory_type;
+    joypad_n64_accessory_type_t accessory_type;
     joypad_n64_accessory_state_t accessory_state;
 } joypad_device_hot_t;
 
@@ -132,7 +132,7 @@ static void joypad_device_reset(joypad_port_t port, joybus_identifier_t identifi
     device->style = JOYPAD_STYLE_NONE;
     device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
     device->rumble_active = false;
-    device->accessory_type = JOYBUS_N64_ACCESSORY_TYPE_NONE;
+    device->accessory_type = JOYPAD_N64_ACCESSORY_TYPE_NONE;
     device->accessory_state = JOYPAD_N64_ACCESSORY_STATE_IDLE;
 }
 
@@ -153,13 +153,13 @@ static void joypad_n64_accessory_detect_read_callback(uint64_t *out_dwords, void
             recv_cmd->data[0] == JOYBUS_N64_ACCESSORY_PROBE_RUMBLE_PAK
         )
         {
-            device->accessory_type = JOYBUS_N64_ACCESSORY_TYPE_RUMBLE_PAK;
+            device->accessory_type = JOYPAD_N64_ACCESSORY_TYPE_RUMBLE_PAK;
             device->rumble_method = JOYPAD_RUMBLE_METHOD_N64_RUMBLE_PAK;
         }
         else
         {
             // TODO Detect other accessory types
-            device->accessory_type = JOYBUS_N64_ACCESSORY_TYPE_UNKNOWN;
+            device->accessory_type = JOYPAD_N64_ACCESSORY_TYPE_UNKNOWN;
             device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
             device->rumble_active = false;
         }
@@ -180,7 +180,7 @@ static void joypad_n64_accessory_detect_write_callback(uint64_t *out_dwords, voi
     if (crc_status != JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK)
     {
         // Accessory write failed: no accessory or bad connection
-        device->accessory_type = JOYBUS_N64_ACCESSORY_TYPE_NONE;
+        device->accessory_type = JOYPAD_N64_ACCESSORY_TYPE_NONE;
         device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
         device->rumble_active = false;
         device->accessory_state = JOYPAD_N64_ACCESSORY_STATE_IDLE;
@@ -229,7 +229,7 @@ static void joypad_n64_rumble_pak_toggle_write_callback(uint64_t *out_dwords, vo
 
     if (crc_status != JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK)
     {
-        device->accessory_type = JOYBUS_N64_ACCESSORY_TYPE_NONE;
+        device->accessory_type = JOYPAD_N64_ACCESSORY_TYPE_NONE;
         device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
         device->rumble_active = false;
         device->accessory_state = JOYPAD_N64_ACCESSORY_STATE_IDLE;
@@ -410,13 +410,13 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
             if (accessory_status != JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_PRESENT)
             {
                 device->accessory_state = JOYPAD_N64_ACCESSORY_STATE_IDLE;
-                device->accessory_type = JOYBUS_N64_ACCESSORY_TYPE_NONE;
+                device->accessory_type = JOYPAD_N64_ACCESSORY_TYPE_NONE;
                 device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
                 device->rumble_active = false;
             }
             if (accessory_status == JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_CHANGED)
             {
-                device->accessory_type = JOYBUS_N64_ACCESSORY_TYPE_UNKNOWN;
+                device->accessory_type = JOYPAD_N64_ACCESSORY_TYPE_UNKNOWN;
                 joypad_n64_accessory_detect_async(port);
             }
         }
