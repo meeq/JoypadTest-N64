@@ -70,7 +70,7 @@ int main(void)
             style = joypad_get_style(port);
             rumble_supported = joypad_get_rumble_supported(port);
             rumble_active = joypad_get_rumble_active(port);
-            inputs = joypad_inputs(port);
+            inputs = joypad_get_inputs(port);
 
             if (rumble_supported)
             {
