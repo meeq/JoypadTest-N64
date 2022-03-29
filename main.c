@@ -31,7 +31,7 @@ int main(void)
     console_set_render_mode(RENDER_MANUAL);
     console_set_debug(false);
 
-    joypad_inputs_t pressed;
+    joypad_buttons_t pressed;
     int bpm;
 
     while (1)
@@ -48,25 +48,25 @@ int main(void)
 
         JOYPAD_PORT_FOR_EACH (port)
         {
-            pressed = joypad_pressed(port);
+            pressed = joypad_get_buttons_pressed(port);
             bpm = bio_sensor_get_bpm(port);
 
             printf("Port %d ", port + 1);
-            printf("BPM: %03d", bpm);
+            printf("BPM: %03d ", bpm);
             if (bio_sensor_get_active(port))
             {
                 if (pressed.b)
                 {
                     bio_sensor_read_stop(port);
-                    printf(" (Stopping)");
+                    printf("(Stopping)");
                 }
                 else if (bio_sensor_get_pulsing(port))
                 {
-                    printf(" (Pulsing)");
+                    printf("(Pulsing)");
                 }
                 else
                 {
-                    printf(" (Resting)");
+                    printf("(Resting)");
                 }
             }
             else
@@ -74,11 +74,11 @@ int main(void)
                 if (pressed.a)
                 {
                     bio_sensor_read_start(port);
-                    printf(" (Starting)");
+                    printf("(Starting)");
                 }
                 else
                 {
-                    printf(" (Stopped)");
+                    printf("(Stopped)");
                 }
             }
             printf("\n");
