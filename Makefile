@@ -1,16 +1,24 @@
-all: BioSensorTest.z64
+all: BioSensorTest.z64 JoypadTest.z64
 .PHONY: all
 
 BUILD_DIR = build
 include $(N64_INST)/include/n64.mk
 
-SRC = main.c joypad.c joybus_n64_accessory.c bio_sensor.c
+N64_CFLAGS += -I./include
+
+SRC = \
+	src/joypad.c \
+	src/joybus_n64_accessory.c \
+	src/bio_sensor.c \
+
 OBJS = $(SRC:%.c=$(BUILD_DIR)/%.o)
 DEPS = $(SRC:%.c=$(BUILD_DIR)/%.d)
 
-BioSensorTest.z64: N64_ROM_TITLE = "Bio Sensor Test"
+JoypadTest.z64: N64_ROM_TITLE = "Joypad Test"
+$(BUILD_DIR)/JoypadTest.elf: $(OBJS) $(BUILD_DIR)/examples/JoypadTest.o
 
-$(BUILD_DIR)/BioSensorTest.elf: $(OBJS)
+BioSensorTest.z64: N64_ROM_TITLE = "Bio Sensor Test"
+$(BUILD_DIR)/BioSensorTest.elf: $(OBJS) $(BUILD_DIR)/examples/BioSensorTest.o
 
 clean:
 	rm -rf $(BUILD_DIR) *.z64

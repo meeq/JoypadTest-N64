@@ -11,7 +11,6 @@
 
 #include "joybus_commands.h"
 #include "joybus_n64_accessory.h"
-
 #include "bio_sensor.h"
 
 #define BIO_SENSOR_PERIODS_MINIMUM 8

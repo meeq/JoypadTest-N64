@@ -10,7 +10,8 @@
             "name": "N64-LibDragon",
             "defines": ["N64=1"],
             "includePath": [
-                "${N64_INST}/mips64-elf/include"
+                "${N64_INST}/mips64-elf/include",
+                "${workspaceFolder}/include"
             ],
             "compilerPath": "${N64_INST}/bin/mips64-elf-gcc",
             "compilerArgs": [
