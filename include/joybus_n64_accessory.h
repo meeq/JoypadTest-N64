@@ -8,7 +8,10 @@
 #ifndef __JOYBUS_N64_ACCESSORY_H
 #define __JOYBUS_N64_ACCESSORY_H
 
+#include <assert.h>
 #include <stdint.h>
+
+#include "joybus_commands.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +43,9 @@ int joybus_n64_accessory_data_crc_compare(const uint8_t *data, uint8_t data_crc)
 
 void joybus_n64_accessory_read_async(int port, uint16_t addr, joybus_callback_t callback, void *ctx);
 void joybus_n64_accessory_write_async(int port, uint16_t addr, uint8_t *data, joybus_callback_t callback, void *ctx);
+
+int joybus_n64_accessory_read(int port, uint16_t addr, uint8_t *data);
+int joybus_n64_accessory_write(int port, uint16_t addr, uint8_t *data);
 
 #ifdef __cplusplus
 }

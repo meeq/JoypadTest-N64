@@ -258,9 +258,11 @@ typedef struct __attribute__((packed)) joypad_inputs_s
 void joypad_init(void);
 void joypad_close(void);
 void joypad_identify(bool reset);
+void joypad_read(void);
 void joypad_scan(void);
 
 joypad_style_t joypad_get_style(joypad_port_t port);
+joypad_n64_accessory_type_t joypad_get_accessory(joypad_port_t port);
 bool joypad_get_rumble_supported(joypad_port_t port);
 bool joypad_get_rumble_active(joypad_port_t port);
 void joypad_set_rumble_active(joypad_port_t port, bool active);

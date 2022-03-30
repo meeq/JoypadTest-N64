@@ -5,7 +5,6 @@
  * @ingroup joypad 
  */
 
-#include <assert.h>
 #include <string.h>
 
 #include "joybus_commands.h"
@@ -102,4 +101,41 @@ void joybus_n64_accessory_write_async(int port, uint16_t addr, uint8_t *data, jo
     input[sizeof(input) - 1] = 0x01;
 
     joybus_exec_async(input, callback, ctx);
+}
+
+int joybus_n64_accessory_read(int port, uint16_t addr, uint8_t *data)
+{
+    volatile bool done = false;
+    volatile int crc_status;
+
+    void callback(uint64_t *out_dwords, void *ctx)
+    {
+        const uint8_t *out_bytes = (void *)out_dwords;
+        const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
+        memcpy(data, recv_cmd->data, sizeof(recv_cmd->data));
+        crc_status = joybus_n64_accessory_data_crc_compare(recv_cmd->data, recv_cmd->data_crc);
+        done = true;
+    }
+
+    joybus_n64_accessory_read_async(port, addr, callback, NULL);
+    while (!done) { /* Spinlock */ }
+    return crc_status;
+}
+
+int joybus_n64_accessory_write(int port, uint16_t addr, uint8_t *data)
+{
+    volatile bool done = false;
+    volatile int crc_status;
+
+    void callback(uint64_t *out_dwords, void *ctx)
+    {
+        const uint8_t *out_bytes = (void *)out_dwords;
+        const joybus_cmd_n64_accessory_write_port_t *recv_cmd = (void *)&out_bytes[port];
+        crc_status = joybus_n64_accessory_data_crc_compare(recv_cmd->data, recv_cmd->data_crc);
+        done = true;
+    }
+
+    joybus_n64_accessory_write_async(port, addr, data, callback, NULL);
+    while (!done) { /* Spinlock */ }
+    return crc_status;
 }

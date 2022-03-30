@@ -5,6 +5,7 @@
  * @ingroup joypad
  */
 
+#include <assert.h>
 #include <stdint.h>
 #include <string.h>
 #include <libdragon.h>
@@ -77,6 +78,7 @@ typedef struct joypad_device_hot_s
     joypad_rumble_method_t rumble_method;
     bool rumble_active;
     // N64-specific fields
+    uint8_t accessory_status;
     joypad_n64_accessory_type_t accessory_type;
     joypad_n64_accessory_state_t accessory_state;
 } joypad_device_hot_t;
@@ -383,19 +385,34 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
         else if (identifier == JOYBUS_IDENTIFIER_N64_CONTROLLER)
         {
             device->style = JOYPAD_STYLE_N64;
+            uint8_t prev_accessory_status = device->accessory_status;
             uint8_t accessory_status = recv_cmd->status & JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_MASK;
-            if (accessory_status != JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_PRESENT)
+            // Work-around third-party controllers that don't correctly report accessory status
+            bool accessory_absent = (
+                accessory_status == JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_ABSENT ||
+                accessory_status == JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_UNSUPPORTED
+            );
+            bool accessory_changed = (
+                accessory_status == JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_CHANGED ||
+                (
+                    accessory_status == JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_PRESENT &&
+                    prev_accessory_status != JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_PRESENT &&
+                    prev_accessory_status != JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_CHANGED
+                )
+            );
+            if (accessory_absent || accessory_changed)
             {
                 device->accessory_state = JOYPAD_N64_ACCESSORY_STATE_IDLE;
                 device->accessory_type = JOYPAD_N64_ACCESSORY_TYPE_NONE;
                 device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
                 device->rumble_active = false;
             }
-            if (accessory_status == JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_CHANGED)
+            if (accessory_changed)
             {
                 device->accessory_type = JOYPAD_N64_ACCESSORY_TYPE_UNKNOWN;
                 joypad_n64_accessory_detect_async(port);
             }
+            device->accessory_status = accessory_status;
         }
         else if (identifier == JOYBUS_IDENTIFIER_N64_MOUSE)
         {
@@ -540,9 +557,7 @@ void joypad_init(void)
         joypad_device_reset(port, JOYBUS_IDENTIFIER_UNKNOWN);
     }
     joypad_identify(true);
-    joypad_read_async();
-    while (joypad_read_pending) { /* Spinlock */ }
-    joypad_scan();
+    joypad_read();
     register_VI_handler(joypad_vi_interrupt_callback);
 }
 
@@ -559,6 +574,13 @@ void joypad_identify(bool reset)
     joypad_identify_async(reset);
     // Wait for the operation to finish
     while (joypad_identify_pending) { /* Spinlock */ }
+}
+
+void joypad_read(void)
+{
+    joypad_read_async();
+    while (joypad_read_pending) { /* Spinlock */ }
+    joypad_scan();
 }
 
 void joypad_scan(void)
@@ -710,6 +732,16 @@ void joypad_scan(void)
     if (check_origins) joypad_gcn_origin_check_async();
 }
 
+joypad_style_t joypad_get_style(joypad_port_t port)
+{
+    return joypad_devices_cold[port].style;
+}
+
+joypad_n64_accessory_type_t joypad_get_accessory(joypad_port_t port)
+{
+    return joypad_devices_hot[port].accessory_type;
+}
+
 bool joypad_get_rumble_supported(joypad_port_t port)
 {
     return joypad_devices_hot[port].rumble_method != JOYPAD_RUMBLE_METHOD_NONE;
@@ -734,11 +766,6 @@ void joypad_set_rumble_active(joypad_port_t port, bool active)
         joypad_gcn_controller_rumble_toggle(port, active);
     }
     enable_interrupts();
-}
-
-joypad_style_t joypad_get_style(joypad_port_t port)
-{
-    return joypad_devices_cold[port].style;
 }
 
 joypad_inputs_t joypad_get_inputs(joypad_port_t port)

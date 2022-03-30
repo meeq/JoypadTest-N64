@@ -14,15 +14,36 @@ const char *format_joypad_style(joypad_style_t style)
     switch (style)
     {
     case JOYPAD_STYLE_NONE:
-        return "None";
+        return "None   ";
     case JOYPAD_STYLE_N64:
-        return "N64";
+        return "N64    ";
     case JOYPAD_STYLE_GCN:
-        return "GCN";
+        return "GCN    ";
     case JOYPAD_STYLE_MOUSE:
-        return "Mouse";
+        return "Mouse  ";
     default:
         return "Unknown";
+    }
+}
+
+const char *format_joypad_accessory_type(joypad_n64_accessory_type_t accessory_type)
+{
+    switch (accessory_type)
+    {
+    case JOYPAD_N64_ACCESSORY_TYPE_NONE:
+        return "None        ";
+    case JOYPAD_N64_ACCESSORY_TYPE_CONTROLLER_PAK:
+        return "Memory      ";
+    case JOYPAD_N64_ACCESSORY_TYPE_RUMBLE_PAK:
+        return "Rumble      ";
+    case JOYPAD_N64_ACCESSORY_TYPE_TRANSFER_PAK:
+        return "Transfer    ";
+    case JOYPAD_N64_ACCESSORY_TYPE_BIO_SENSOR:
+        return "Bio Sensor  ";
+    case JOYPAD_N64_ACCESSORY_TYPE_SNAP_STATION:
+        return "Snap Station";
+    default:
+        return "Unknown     ";
     }
 }
 
@@ -49,6 +70,7 @@ int main(void)
     joypad_init();
 
     joypad_style_t style;
+    joypad_n64_accessory_type_t accessory_type;
     bool rumble_supported;
     bool rumble_active;
     joypad_inputs_t inputs;
@@ -68,6 +90,7 @@ int main(void)
         for (joypad_port_t port = JOYPAD_PORT_1; port < JOYPAD_PORT_COUNT; ++port)
         {
             style = joypad_get_style(port);
+            accessory_type = joypad_get_accessory(port);
             rumble_supported = joypad_get_rumble_supported(port);
             rumble_active = joypad_get_rumble_active(port);
             inputs = joypad_get_inputs(port);
@@ -86,6 +109,7 @@ int main(void)
 
             printf("Port %d ", port + 1);
             printf("Style: %s ", format_joypad_style(style));
+            printf("Pak: %s ", format_joypad_accessory_type(accessory_type));
             printf("Rumble: %s\n", format_joypad_rumble(rumble_supported, rumble_active));
             print_joypad_inputs(inputs);
             printf("\n");

@@ -1,4 +1,4 @@
-all: BioSensorTest.z64 JoypadTest.z64
+all: AccessoryProbeTest.z64 BioSensorTest.z64 JoypadTest.z64
 .PHONY: all
 
 BUILD_DIR = build
@@ -14,10 +14,13 @@ SRC = \
 OBJS = $(SRC:%.c=$(BUILD_DIR)/%.o)
 DEPS = $(SRC:%.c=$(BUILD_DIR)/%.d)
 
-JoypadTest.z64: N64_ROM_TITLE = "Joypad Test"
+JoypadTest.z64: N64_ROM_TITLE = "JoypadTest"
 $(BUILD_DIR)/JoypadTest.elf: $(OBJS) $(BUILD_DIR)/examples/JoypadTest.o
 
-BioSensorTest.z64: N64_ROM_TITLE = "Bio Sensor Test"
+AccessoryProbeTest.z64: N64_ROM_TITLE = "AccessoryProbeTest"
+$(BUILD_DIR)/AccessoryProbeTest.elf: $(OBJS) $(BUILD_DIR)/examples/AccessoryProbeTest.o
+
+BioSensorTest.z64: N64_ROM_TITLE = "BioSensorTest"
 $(BUILD_DIR)/BioSensorTest.elf: $(OBJS) $(BUILD_DIR)/examples/BioSensorTest.o
 
 clean:
