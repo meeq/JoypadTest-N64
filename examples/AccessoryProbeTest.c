@@ -218,7 +218,7 @@ void loop_tests(joypad_port_t port, uint8_t probe_byte)
 
         while (1)
         {
-            joypad_read();
+            joypad_scan();
             p1 = joypad_get_buttons_pressed(JOYPAD_PORT_1);
             if (p1.a) break;
             if (p1.b) return;
@@ -271,7 +271,7 @@ int main(void)
         printf("Press L to decrement or R to increment Controller Port.\n");
         console_render();
 
-        joypad_read();
+        joypad_scan();
         p1 = joypad_get_buttons_pressed(JOYPAD_PORT_1);
         // Port selection
         if (p1.l) port = port <= JOYPAD_PORT_1 ? JOYPAD_PORT_4 : port - 1;

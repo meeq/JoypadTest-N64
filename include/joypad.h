@@ -257,8 +257,8 @@ typedef struct __attribute__((packed)) joypad_inputs_s
 
 void joypad_init(void);
 void joypad_close(void);
-void joypad_identify(bool reset);
-void joypad_read(void);
+void joypad_identify_sync(bool reset);
+void joypad_read_sync(void);
 void joypad_scan(void);
 
 joypad_style_t joypad_get_style(joypad_port_t port);

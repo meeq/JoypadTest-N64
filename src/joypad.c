@@ -556,8 +556,8 @@ void joypad_init(void)
     {
         joypad_device_reset(port, JOYBUS_IDENTIFIER_UNKNOWN);
     }
-    joypad_identify(true);
-    joypad_read();
+    joypad_identify_sync(true);
+    joypad_read_sync();
     register_VI_handler(joypad_vi_interrupt_callback);
 }
 
@@ -566,7 +566,7 @@ void joypad_close(void)
     unregister_VI_handler(joypad_vi_interrupt_callback);
 }
 
-void joypad_identify(bool reset)
+void joypad_identify_sync(bool reset)
 {
     // Wait for pending identify/reset operation to resolve
     while (joypad_identify_pending) { /* Spinlock */ }
@@ -576,7 +576,7 @@ void joypad_identify(bool reset)
     while (joypad_identify_pending) { /* Spinlock */ }
 }
 
-void joypad_read(void)
+void joypad_read_sync(void)
 {
     joypad_read_async();
     while (joypad_read_pending) { /* Spinlock */ }
