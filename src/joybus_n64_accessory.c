@@ -103,39 +103,60 @@ void joybus_n64_accessory_write_async(int port, uint16_t addr, uint8_t *data, jo
     joybus_exec_async(input, callback, ctx);
 }
 
-int joybus_n64_accessory_read(int port, uint16_t addr, uint8_t *data)
+typedef struct joybus_n64_accessory_command_context_s
 {
-    volatile bool done = false;
-    volatile int crc_status;
+    int port;
+    uint8_t *data;
+    uint8_t data_crc;
+    volatile bool done;
+} joybus_n64_accessory_command_context_t;
 
-    void callback(uint64_t *out_dwords, void *ctx)
-    {
-        const uint8_t *out_bytes = (void *)out_dwords;
-        const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
-        memcpy(data, recv_cmd->data, sizeof(recv_cmd->data));
-        crc_status = joybus_n64_accessory_data_crc_compare(recv_cmd->data, recv_cmd->data_crc);
-        done = true;
-    }
-
-    joybus_n64_accessory_read_async(port, addr, callback, NULL);
-    while (!done) { /* Spinlock */ }
-    return crc_status;
+static void joybus_n64_accessory_read_sync_callback(uint64_t *out_dwords, void *ctx)
+{
+    const uint8_t *out_bytes = (void *)out_dwords;
+    joybus_n64_accessory_command_context_t *context = ctx;
+    const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[context->port];
+    memcpy(context->data, recv_cmd->data, sizeof(recv_cmd->data));
+    context->data_crc = recv_cmd->data_crc;
+    context->done = true;
 }
 
-int joybus_n64_accessory_write(int port, uint16_t addr, uint8_t *data)
+int joybus_n64_accessory_read_sync(int port, uint16_t addr, uint8_t *data)
 {
-    volatile bool done = false;
-    volatile int crc_status;
+    joybus_n64_accessory_command_context_t context = {
+        .port = port,
+        .data = data,
+        .done = false
+    };
+    joybus_n64_accessory_read_async(
+        port, addr,
+        joybus_n64_accessory_read_sync_callback,
+        (void *)&context
+    );
+    while (!context.done) { /* Spinlock */ }
+    return joybus_n64_accessory_data_crc_compare(context.data, context.data_crc);
+}
 
-    void callback(uint64_t *out_dwords, void *ctx)
-    {
-        const uint8_t *out_bytes = (void *)out_dwords;
-        const joybus_cmd_n64_accessory_write_port_t *recv_cmd = (void *)&out_bytes[port];
-        crc_status = joybus_n64_accessory_data_crc_compare(recv_cmd->data, recv_cmd->data_crc);
-        done = true;
-    }
+static void joybus_n64_accessory_write_sync_callback(uint64_t *out_dwords, void *ctx)
+{
+    const uint8_t *out_bytes = (void *)out_dwords;
+    joybus_n64_accessory_command_context_t *context = ctx;
+    const joybus_cmd_n64_accessory_write_port_t *recv_cmd = (void *)&out_bytes[context->port];
+    context->data_crc = recv_cmd->data_crc;
+    context->done = true;
+}
 
-    joybus_n64_accessory_write_async(port, addr, data, callback, NULL);
-    while (!done) { /* Spinlock */ }
-    return crc_status;
+int joybus_n64_accessory_write_sync(int port, uint16_t addr, uint8_t *data)
+{
+    joybus_n64_accessory_command_context_t context = {
+        .port = port,
+        .done = false,
+    };
+    joybus_n64_accessory_write_async(
+        port, addr, data,
+        joybus_n64_accessory_write_sync_callback,
+        (void *)&context
+    );
+    while (!context.done) { /* Spinlock */ }
+    return joybus_n64_accessory_data_crc_compare(data, context.data_crc);
 }

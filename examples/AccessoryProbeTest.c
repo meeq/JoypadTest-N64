@@ -34,7 +34,7 @@ int run_test(joypad_port_t port, uint8_t *data)
     printf("Writing to 0x%04X...\n", PROBE_ADDR);
     print_data(data);
     console_render();
-    crc_status = joybus_n64_accessory_write(port, PROBE_ADDR, data);
+    crc_status = joybus_n64_accessory_write_sync(port, PROBE_ADDR, data);
     if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_DISCONNECTED)
     {
         printf("Accessory write disconnected.\n");
@@ -47,7 +47,7 @@ int run_test(joypad_port_t port, uint8_t *data)
     {
         printf("Reading from 0x%04X...\n", PROBE_ADDR);
         console_render();
-        crc_status = joybus_n64_accessory_read(port, PROBE_ADDR, data);
+        crc_status = joybus_n64_accessory_read_sync(port, PROBE_ADDR, data);
         if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_DISCONNECTED)
         {
             printf("Accessory read disconnected.\n");
