@@ -8,6 +8,7 @@
 #ifndef __JOYBUS_COMMANDS_H
 #define __JOYBUS_COMMANDS_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -67,6 +68,11 @@ typedef uint16_t joybus_identifier_t;
 #define JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ         0x40
 #define JOYBUS_COMMAND_ID_GCN_CONTROLLER_ORIGIN       0x41
 #define JOYBUS_COMMAND_ID_GCN_CONTROLLER_RECALIBRATE  0x42
+
+#define JOYBUS_CONTROLLER_PORT_COUNT 4
+
+#define ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port) \
+    assert(port >= 0 && port < JOYBUS_CONTROLLER_PORT_COUNT)
 
 typedef struct __attribute__((packed)) joybus_cmd_n64_accessory_read_port_s
 {
@@ -141,6 +147,8 @@ typedef struct __attribute__((packed)) joybus_cmd_identify_port_s
         };
     };
 } joybus_cmd_identify_port_t;
+
+typedef joybus_cmd_identify_port_t joybus_cmd_reset_port_t;
 
 typedef struct __attribute__((packed)) joybus_cmd_n64_controller_read_port_s
 {
@@ -224,6 +232,8 @@ typedef struct __attribute__((packed)) joybus_cmd_gcn_controller_origin_port_s
         };
     };
 } joybus_cmd_gcn_controller_origin_port_t;
+
+typedef joybus_cmd_gcn_controller_origin_port_t joybus_cmd_gcn_controller_longpoll_port_t;
 
 typedef struct __attribute__((packed)) joybus_cmd_gcn_controller_read_port_s
 {

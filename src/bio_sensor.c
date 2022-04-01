@@ -35,7 +35,7 @@ typedef struct
     unsigned beats_per_period[BIO_SENSOR_PERIODS_MAXIMUM];
 } bio_sensor_reader_t;
 
-static volatile bio_sensor_reader_t bio_sensor_readers[JOYBUS_N64_ACCESSORY_PORT_COUNT] = {0};
+static volatile bio_sensor_reader_t bio_sensor_readers[JOYBUS_CONTROLLER_PORT_COUNT] = {0};
 
 static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
 {
@@ -89,7 +89,7 @@ static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
 
 static void bio_sensor_vi_interrupt_callback(void)
 {
-    for (int port = 0; port < JOYBUS_N64_ACCESSORY_PORT_COUNT; ++port)
+    for (int port = 0; port < JOYBUS_CONTROLLER_PORT_COUNT; ++port)
     {
         if (
             bio_sensor_readers[port].read_pending == false &&
@@ -119,7 +119,7 @@ void bio_sensor_close(void)
 
 void bio_sensor_read_start(int port)
 {
-    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     if (bio_sensor_readers[port].state != BIO_SENSOR_STATE_STOPPED) return;
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
     memset((void *)reader, 0, sizeof(*reader));
@@ -129,26 +129,26 @@ void bio_sensor_read_start(int port)
 
 void bio_sensor_read_stop(int port)
 {
-    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
     memset((void *)reader, 0, sizeof(*reader));
 }
 
 bool bio_sensor_get_active(int port)
 {
-    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     return bio_sensor_readers[port].state != BIO_SENSOR_STATE_STOPPED;
 }
 
 bool bio_sensor_get_pulsing(int port)
 {
-    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     return bio_sensor_readers[port].state == BIO_SENSOR_STATE_PULSING;
 }
 
 int bio_sensor_get_bpm(int port)
 {
-    ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port);
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
     float num_periods = reader->period_counter;
     if (num_periods < BIO_SENSOR_PERIODS_MINIMUM)

@@ -280,7 +280,7 @@ static void joypad_gcn_origin_callback(uint64_t *out_dwords, void *ctx)
     const joybus_cmd_gcn_controller_origin_port_t *recv_cmd;
     size_t i = 0;
 
-    JOYPAD_PORT_FOR_EACH (port)
+    JOYPAD_PORT_FOREACH (port)
     {
         // Check send_len to figure out if this port has a command on it
         if (out_bytes[i + JOYBUS_COMMAND_OFFSET_SEND_LEN] == 0)
@@ -331,7 +331,7 @@ static void joypad_gcn_origin_check_async(void)
 
         // Populate the Joybus commands on each port
         memset(input, 0, JOYBUS_BLOCK_SIZE);
-        JOYPAD_PORT_FOR_EACH (port)
+        JOYPAD_PORT_FOREACH (port)
         {
             // Micro-optimization: Minimize copy length
             memcpy(&input[i], &send_cmd, recv_offset);
@@ -356,7 +356,7 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
     bool devices_changed = false;
     size_t i = 0;
 
-    JOYPAD_PORT_FOR_EACH (port)
+    JOYPAD_PORT_FOREACH (port)
     {
         device = &joypad_devices_hot[port];
         recv_cmd = (void *)&out_bytes[i];
@@ -449,7 +449,7 @@ static void joypad_identify_async(bool reset)
 
         // Populate the Joybus commands on each port
         memset(input, 0, JOYBUS_BLOCK_SIZE);
-        JOYPAD_PORT_FOR_EACH (port)
+        JOYPAD_PORT_FOREACH (port)
         {
             // Micro-optimization: Minimize copy length
             memcpy(&input[i], &send_cmd, recv_offset);
@@ -471,7 +471,7 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
 {
     memcpy((void *)joypad_read_output, out_dwords, JOYBUS_BLOCK_SIZE);
     joypad_read_pending = false;
-    joypad_read_count += 1;
+    joypad_read_count++;
 }
 
 static void joypad_read_async(void)
@@ -489,7 +489,7 @@ static void joypad_read_async(void)
 
         // Populate Joybus controller read commands on each port
         memset(input, 0, JOYBUS_BLOCK_SIZE);
-        JOYPAD_PORT_FOR_EACH (port)
+        JOYPAD_PORT_FOREACH (port)
         {
             joypad_read_input_offsets[port] = i;
             device = &joypad_devices_hot[port];
@@ -552,7 +552,7 @@ static void joypad_vi_interrupt_callback(void)
 
 void joypad_init(void)
 {
-    JOYPAD_PORT_FOR_EACH (port)
+    JOYPAD_PORT_FOREACH (port)
     {
         joypad_device_reset(port, JOYBUS_IDENTIFIER_UNKNOWN);
     }
@@ -607,7 +607,7 @@ void joypad_scan(void)
     bool check_origins = false;
     size_t i = 0;
 
-    JOYPAD_PORT_FOR_EACH (port)
+    JOYPAD_PORT_FOREACH (port)
     {
         device = &joypad_devices_cold[port];
         // Check send_len to figure out if this port has a command on it
@@ -734,26 +734,31 @@ void joypad_scan(void)
 
 joypad_style_t joypad_get_style(joypad_port_t port)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     return joypad_devices_cold[port].style;
 }
 
 joypad_n64_accessory_type_t joypad_get_accessory(joypad_port_t port)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     return joypad_devices_hot[port].accessory_type;
 }
 
 bool joypad_get_rumble_supported(joypad_port_t port)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     return joypad_devices_hot[port].rumble_method != JOYPAD_RUMBLE_METHOD_NONE;
 }
 
 bool joypad_get_rumble_active(joypad_port_t port)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     return joypad_devices_hot[port].rumble_active;
 }
 
 void joypad_set_rumble_active(joypad_port_t port, bool active)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     disable_interrupts();
     volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
     joypad_rumble_method_t rumble_method = device->rumble_method;
@@ -770,16 +775,19 @@ void joypad_set_rumble_active(joypad_port_t port, bool active)
 
 joypad_inputs_t joypad_get_inputs(joypad_port_t port)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     return joypad_devices_cold[port].current;
 }
 
 joypad_buttons_t joypad_get_buttons(joypad_port_t port)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     return joypad_devices_cold[port].current.buttons;
 }
 
 joypad_buttons_t joypad_get_buttons_pressed(joypad_port_t port)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     const joypad_buttons_raw_t current = {
         .buttons = joypad_devices_cold[port].current.buttons,
     };
@@ -794,6 +802,7 @@ joypad_buttons_t joypad_get_buttons_pressed(joypad_port_t port)
 
 joypad_buttons_t joypad_get_buttons_released(joypad_port_t port)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     const joypad_buttons_raw_t current = {
         .buttons = joypad_devices_cold[port].current.buttons,
     };
@@ -808,6 +817,7 @@ joypad_buttons_t joypad_get_buttons_released(joypad_port_t port)
 
 joypad_buttons_t joypad_get_buttons_held(joypad_port_t port)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     const joypad_buttons_raw_t current = {
         .buttons = joypad_devices_cold[port].current.buttons,
     };

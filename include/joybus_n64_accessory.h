@@ -8,7 +8,6 @@
 #ifndef __JOYBUS_N64_ACCESSORY_H
 #define __JOYBUS_N64_ACCESSORY_H
 
-#include <assert.h>
 #include <stdint.h>
 
 #include "joybus_commands.h"
@@ -16,10 +15,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define JOYBUS_N64_ACCESSORY_PORT_COUNT 4
-#define ASSERT_JOYBUS_N64_ACCESSORY_PORT_VALID(port) \
-    assert(port >= 0 && port < JOYBUS_N64_ACCESSORY_PORT_COUNT)
 
 #define JOYBUS_N64_ACCESSORY_DATA_SIZE 32
 

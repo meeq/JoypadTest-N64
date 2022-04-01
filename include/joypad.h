@@ -30,12 +30,12 @@ typedef enum
     JOYPAD_PORT_3     = 2,
     /** @brief Joypad Port 4 */
     JOYPAD_PORT_4     = 3,
-    /** @brief Joypad Port Count */
-    JOYPAD_PORT_COUNT = 4,
 } joypad_port_t;
 
+#define JOYPAD_PORT_COUNT 4
+
 /** @brief Convenience macro to iterate through all Joypad ports */
-#define JOYPAD_PORT_FOR_EACH(iterator_token) for (\
+#define JOYPAD_PORT_FOREACH(iterator_token) for (\
     joypad_port_t iterator_token = JOYPAD_PORT_1; \
     iterator_token < JOYPAD_PORT_COUNT; \
     iterator_token += 1 \

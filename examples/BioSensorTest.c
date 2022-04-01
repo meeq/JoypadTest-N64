@@ -46,7 +46,7 @@ int main(void)
         printf("Press B to stop reading the Bio Sensor\n");
         printf("\n");
 
-        JOYPAD_PORT_FOR_EACH (port)
+        JOYPAD_PORT_FOREACH (port)
         {
             pressed = joypad_get_buttons_pressed(port);
             bpm = bio_sensor_get_bpm(port);
