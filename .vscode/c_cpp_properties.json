@@ -22,7 +22,7 @@
             ],
             "cStandard": "gnu99",
             "cppStandard": "c++11",
-            "intelliSenseMode": "gcc-arm"
+            "intelliSenseMode": "linux-gcc-x86"
         }
     ]
 }
