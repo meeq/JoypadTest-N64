@@ -6,10 +6,11 @@ include $(N64_INST)/include/n64.mk
 
 N64_CFLAGS += -I./include
 
-SRC = \
-	src/joypad.c \
+SRC =                          \
+	src/bio_sensor.c           \
 	src/joybus_n64_accessory.c \
-	src/bio_sensor.c \
+	src/joypad_accessory.c     \
+	src/joypad.c               \
 
 OBJS = $(SRC:%.c=$(BUILD_DIR)/%.o)
 DEPS = $(SRC:%.c=$(BUILD_DIR)/%.d)
