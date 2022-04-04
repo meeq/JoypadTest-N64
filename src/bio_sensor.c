@@ -51,7 +51,7 @@ static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
     if (crc_status != JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK)
     {
         // Stop reading if the Bio Sensor has been disconnected
-        if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_DISCONNECTED)
+        if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_NO_PAK)
         {
             bio_sensor_read_stop(port);
         }
@@ -98,10 +98,8 @@ static void bio_sensor_vi_interrupt_callback(void)
         {
             bio_sensor_readers[port].read_pending = true;
             joybus_n64_accessory_read_async(
-                port,
-                0xC000,
-                bio_sensor_read_callback,
-                (void *)port
+                port, JOYBUS_N64_ACCESSORY_ADDR_BIO_PULSE,
+                bio_sensor_read_callback, (void *)port
             );
         }
     }

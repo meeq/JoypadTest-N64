@@ -76,30 +76,30 @@ bool cart_sram_verify(void)
 
     /* Generate test values based on the destination SRAM addresses */
     uint32_t * write_words = (uint32_t *)write_buf;
-    for( size_t i = 0; i < SRAM_256KBIT_SIZE / sizeof(uint32_t); ++i )
+    for (size_t i = 0; i < SRAM_256KBIT_SIZE / sizeof(uint32_t); ++i)
     {
         write_words[i] = i;
     }
 
     /* Write the test values into SRAM */
-    data_cache_hit_writeback_invalidate( write_buf, SRAM_256KBIT_SIZE );
-    cart_dom2_addr2_write( write_buf, 0, SRAM_256KBIT_SIZE );
+    data_cache_hit_writeback_invalidate(write_buf, SRAM_256KBIT_SIZE);
+    cart_dom2_addr2_write(write_buf, 0, SRAM_256KBIT_SIZE);
 
     /* Read the test values back to see if they persisted */
-    data_cache_hit_writeback_invalidate( read_buf, SRAM_256KBIT_SIZE );
-    cart_dom2_addr2_read( read_buf, 0, SRAM_256KBIT_SIZE );
+    data_cache_hit_writeback_invalidate(read_buf, SRAM_256KBIT_SIZE);
+    cart_dom2_addr2_read(read_buf, 0, SRAM_256KBIT_SIZE);
 
     /* Compare what was written to what was read back from SRAM */
-    if( memcmp( write_buf, read_buf, SRAM_256KBIT_SIZE ) != 0 )
+    if (memcmp(write_buf, read_buf, SRAM_256KBIT_SIZE ) != 0)
     {
         /* There was a mismatch between what was written and read */
         return false;
     }
 
     /* Erase SRAM */
-    memset( write_buf, 0, SRAM_256KBIT_SIZE );
-    data_cache_hit_writeback_invalidate( write_buf, SRAM_256KBIT_SIZE );
-    cart_dom2_addr2_write( write_buf, 0, SRAM_256KBIT_SIZE );
+    memset(write_buf, 0, SRAM_256KBIT_SIZE);
+    data_cache_hit_writeback_invalidate( write_buf, SRAM_256KBIT_SIZE);
+    cart_dom2_addr2_write(write_buf, 0, SRAM_256KBIT_SIZE);
 
     return true;
 }
@@ -118,7 +118,7 @@ int dump_controller_pak(joypad_port_t port)
     }
     printf("\nWriting to SRAM...\n");
 
-    data_cache_hit_writeback_invalidate( dump, sizeof(dump) );
+    data_cache_hit_writeback_invalidate(dump, sizeof(dump));
     cart_dom2_addr2_write(dump, 0, sizeof(dump));
 
     return crc_status;
@@ -136,6 +136,7 @@ int main(void)
     joypad_init();
     joypad_buttons_t p1;
     joypad_port_t port = JOYPAD_PORT_1;
+    joypad_accessory_type_t accessory_type;
     int dump_status;
 
     bool sram_detected = cart_sram_verify();
@@ -144,9 +145,10 @@ int main(void)
     {
         joypad_scan();
         p1 = joypad_get_buttons_pressed(port);
+        accessory_type = joypad_get_accessory_type(port);
 
         console_clear();
-        printf("N64 Controller Pak Dump v2 by Meeq\n");
+        printf("N64 Controller Pak Dump v3 by Meeq\n");
         printf("\n");
 
         if (!sram_detected)
@@ -155,7 +157,7 @@ int main(void)
             printf("Check your flashcart settings!\n");
             console_render();
         }
-        else if (joypad_get_accessory(port) == JOYPAD_N64_ACCESSORY_TYPE_NONE)
+        else if (accessory_type != JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK)
         {
             printf("Insert a Controller Pak in Controller Port 1 to continue\n");
             console_render();
@@ -169,7 +171,7 @@ int main(void)
                 printf("Dumping...\n");
                 console_render();
                 dump_status = dump_controller_pak(port);
-                if (dump_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_DISCONNECTED)
+                if (dump_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_NO_PAK)
                 {
                     printf("Dump failed due to accessory disconnect!\n");
                 }

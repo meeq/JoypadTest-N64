@@ -41,7 +41,14 @@ typedef enum
     iterator_token += 1 \
 )
 
-/** @brief Joypad Styles Enumeration */
+/** 
+ * @brief Joypad Identifier type
+ * 
+ * For example values, see @ref JOYBUS_IDENTIFIER
+ */
+typedef uint16_t joypad_identifier_t;
+
+/** @brief Joypad Styles enumeration */
 typedef enum
 {
     /** @brief Unsupported Joypad Style */
@@ -72,17 +79,19 @@ typedef enum
     JOYPAD_STYLE_MOUSE,
 } joypad_style_t;
 
+/** @brief Joypad Accessories enumeration */
 typedef enum
 {
-    JOYPAD_N64_ACCESSORY_TYPE_NONE = 0,
-    JOYPAD_N64_ACCESSORY_TYPE_UNKNOWN,
-    JOYPAD_N64_ACCESSORY_TYPE_CONTROLLER_PAK,
-    JOYPAD_N64_ACCESSORY_TYPE_RUMBLE_PAK,
-    JOYPAD_N64_ACCESSORY_TYPE_TRANSFER_PAK,
-    JOYPAD_N64_ACCESSORY_TYPE_BIO_SENSOR,
-    JOYPAD_N64_ACCESSORY_TYPE_SNAP_STATION,
-} joypad_n64_accessory_type_t;
+    JOYPAD_ACCESSORY_TYPE_NONE = 0,
+    JOYPAD_ACCESSORY_TYPE_UNKNOWN,
+    JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK,
+    JOYPAD_ACCESSORY_TYPE_RUMBLE_PAK,
+    JOYPAD_ACCESSORY_TYPE_TRANSFER_PAK,
+    JOYPAD_ACCESSORY_TYPE_BIO_SENSOR,
+    JOYPAD_ACCESSORY_TYPE_SNAP_STATION,
+} joypad_accessory_type_t;
 
+/** @brief Joypad Buttons Common State Structure */
 typedef struct __attribute__((packed)) joypad_buttons_s
 {
     /** @brief State of the A button */
@@ -141,7 +150,7 @@ typedef struct __attribute__((packed)) joypad_buttons_s
     unsigned c_right : 1;
 } joypad_buttons_t;
 
-/** @brief Common Joypad Inputs State Structure */
+/** @brief Joypad Inputs Common State Structure */
 typedef struct __attribute__((packed)) joypad_inputs_s
 {
     union
@@ -255,14 +264,26 @@ typedef struct __attribute__((packed)) joypad_inputs_s
     uint8_t analog_r;
 } joypad_inputs_t;
 
+/** @brief Joypad Axis enumeration */
+typedef enum
+{
+    JOYPAD_AXIS_STICK_X = offsetof(joypad_inputs_t, stick_x),
+    JOYPAD_AXIS_STICK_Y = offsetof(joypad_inputs_t, stick_y),
+    JOYPAD_AXIS_CSTICK_X = offsetof(joypad_inputs_t, cstick_x),
+    JOYPAD_AXIS_CSTICK_Y = offsetof(joypad_inputs_t, cstick_y),
+    JOYPAD_AXIS_ANALOG_L = offsetof(joypad_inputs_t, analog_l),
+    JOYPAD_AXIS_ANALOG_R = offsetof(joypad_inputs_t, analog_r),
+} joypad_axis_t;
+
 void joypad_init(void);
 void joypad_close(void);
 void joypad_identify_sync(bool reset);
 void joypad_read_sync(void);
 void joypad_scan(void);
 
+joypad_identifier_t joypad_get_identifier(joypad_port_t port);
 joypad_style_t joypad_get_style(joypad_port_t port);
-joypad_n64_accessory_type_t joypad_get_accessory(joypad_port_t port);
+joypad_accessory_type_t joypad_get_accessory_type(joypad_port_t port);
 bool joypad_get_rumble_supported(joypad_port_t port);
 bool joypad_get_rumble_active(joypad_port_t port);
 void joypad_set_rumble_active(joypad_port_t port, bool active);
@@ -272,6 +293,8 @@ joypad_buttons_t joypad_get_buttons(joypad_port_t port);
 joypad_buttons_t joypad_get_buttons_pressed(joypad_port_t port);
 joypad_buttons_t joypad_get_buttons_released(joypad_port_t port);
 joypad_buttons_t joypad_get_buttons_held(joypad_port_t port);
+int joypad_get_axis_pressed(joypad_port_t port, joypad_axis_t axis);
+int joypad_get_axis_released(joypad_port_t port, joypad_axis_t axis);
 
 #ifdef __cplusplus
 }

@@ -20,16 +20,28 @@ extern "C" {
 typedef void (*joybus_callback_t)(uint64_t *out_dwords, void *ctx);
 void joybus_exec_async(const void * input, joybus_callback_t callback, void *ctx);
 
-typedef uint16_t joybus_identifier_t;
+#define JOYBUS_BLOCK_SIZE               64
+#define JOYBUS_N64_ACCESSORY_DATA_SIZE  32
 
 #define JOYBUS_ID_TYPE_MASK 0x1800
 #define JOYBUS_ID_TYPE_N64  0x0000
 #define JOYBUS_ID_TYPE_GCN  0x0800
 
+/**
+ * @anchor JOYBUS_IDENTIFIER_MASK
+ * @name Joybus identifier masks
+ * @{
+ */
 #define JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER   0x0100
 #define JOYBUS_IDENTIFIER_MASK_GCN_NORUMBLE     0x2000
 #define JOYBUS_IDENTIFIER_MASK_GCN_WIRELESS     0x8000
+/** @} */
 
+/**
+ * @anchor JOYBUS_IDENTIFIER
+ * @name Joybus identifier values
+ * @{
+ */
 #define JOYBUS_IDENTIFIER_UNKNOWN               0x0000
 #define JOYBUS_IDENTIFIER_NONE                  0xFFFF
 #define JOYBUS_IDENTIFIER_GBA_VIA_LINK_CABLE    0x0004
@@ -39,20 +51,30 @@ typedef uint16_t joybus_identifier_t;
 #define JOYBUS_IDENTIFIER_N64_KEYBOARD         (0x0002 | JOYBUS_ID_TYPE_N64)
 #define JOYBUS_IDENTIFIER_GCN_KEYBOARD         (0x0020 | JOYBUS_ID_TYPE_GCN)
 #define JOYBUS_IDENTIFIER_GCN_STEERING_WHEEL   (0x0000 | JOYBUS_ID_TYPE_GCN)
+/** @} */
 
+/**
+ * @anchor JOYBUS_IDENTIFY_STATUS
+ * @name Joybus identify status values
+ * @{
+ */
 #define JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_MASK         0x03
 #define JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_UNSUPPORTED  0x00
 #define JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_PRESENT      0x01
 #define JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_ABSENT       0x02
 #define JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_CHANGED      0x03
+/** @} */
 
-#define JOYBUS_BLOCK_SIZE              64
-#define JOYBUS_N64_ACCESSORY_DATA_SIZE 32
-
+/**
+ * @anchor JOYBUS_RANGE
+ * @name Joybus analog value ranges
+ * @{
+ */
 #define JOYBUS_RANGE_N64_STICK_MAX    90
 #define JOYBUS_RANGE_GCN_STICK_MAX    100
 #define JOYBUS_RANGE_GCN_CSTICK_MAX   76
 #define JOYBUS_RANGE_GCN_TRIGGER_MAX  200
+/** @} */
 
 #define JOYBUS_COMMAND_SKIP_SIZE          1
 #define JOYBUS_COMMAND_METADATA_SIZE      2
@@ -60,6 +82,11 @@ typedef uint16_t joybus_identifier_t;
 #define JOYBUS_COMMAND_OFFSET_RECV_LEN    1
 #define JOYBUS_COMMAND_OFFSET_COMMAND_ID  2
 
+/**
+ * @anchor JOYBUS_COMMAND_ID
+ * @name Joybus command identifiers
+ * @{
+ */
 #define JOYBUS_COMMAND_ID_RESET                       0xFF
 #define JOYBUS_COMMAND_ID_IDENTIFY                    0x00
 #define JOYBUS_COMMAND_ID_N64_CONTROLLER_READ         0x01
@@ -68,11 +95,12 @@ typedef uint16_t joybus_identifier_t;
 #define JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ         0x40
 #define JOYBUS_COMMAND_ID_GCN_CONTROLLER_ORIGIN       0x41
 #define JOYBUS_COMMAND_ID_GCN_CONTROLLER_RECALIBRATE  0x42
+/** @} */
 
 #define JOYBUS_CONTROLLER_PORT_COUNT 4
 
 #define ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port) \
-    assert(port >= 0 && port < JOYBUS_CONTROLLER_PORT_COUNT)
+    assert((port) >= 0 && (port) < JOYBUS_CONTROLLER_PORT_COUNT)
 
 typedef struct __attribute__((packed)) joybus_cmd_n64_accessory_read_port_s
 {
@@ -142,7 +170,7 @@ typedef struct __attribute__((packed)) joybus_cmd_identify_port_s
         uint8_t recv_bytes[0x03];
         struct __attribute__((__packed__))
         {
-            joybus_identifier_t identifier;
+            uint16_t identifier;
             uint8_t status;
         };
     };

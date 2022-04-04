@@ -32,6 +32,7 @@ int main(void)
     console_set_debug(false);
 
     joypad_buttons_t pressed;
+    joypad_accessory_type_t accessory_type;
     int bpm;
 
     while (1)
@@ -49,6 +50,7 @@ int main(void)
         JOYPAD_PORT_FOREACH (port)
         {
             pressed = joypad_get_buttons_pressed(port);
+            accessory_type = joypad_get_accessory_type(port);
             bpm = bio_sensor_get_bpm(port);
 
             printf("Port %d ", port + 1);
@@ -69,7 +71,7 @@ int main(void)
                     printf("(Resting)");
                 }
             }
-            else
+            else if (accessory_type == JOYPAD_ACCESSORY_TYPE_BIO_SENSOR)
             {
                 if (pressed.a)
                 {
@@ -80,6 +82,10 @@ int main(void)
                 {
                     printf("(Stopped)");
                 }
+            }
+            else
+            {
+                printf("(Unavailable)");
             }
             printf("\n");
         }

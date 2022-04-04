@@ -35,7 +35,7 @@ int run_test(joypad_port_t port, uint8_t *data)
     print_data(data);
     console_render();
     crc_status = joybus_n64_accessory_write_sync(port, PROBE_ADDR, data);
-    if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_DISCONNECTED)
+    if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_NO_PAK)
     {
         printf("Accessory write disconnected.\n");
     }
@@ -48,7 +48,7 @@ int run_test(joypad_port_t port, uint8_t *data)
         printf("Reading from 0x%04X...\n", PROBE_ADDR);
         console_render();
         crc_status = joybus_n64_accessory_read_sync(port, PROBE_ADDR, data);
-        if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_DISCONNECTED)
+        if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_NO_PAK)
         {
             printf("Accessory read disconnected.\n");
         }
@@ -86,8 +86,8 @@ int run_tests(joypad_port_t port, uint8_t probe_byte)
         printf("Bio Sensor detected!\n");
     }
     else if (
-        probe_byte == JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_OFF ||
-        probe_byte == JOYBUS_N64_ACCESSORY_PROBE_CONTROLLER_PAK
+        probe_byte == 0x00 ||
+        probe_byte == JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_OFF
     )
     {
         if (memcmp(data, ALL_ZEROES, JOYBUS_N64_ACCESSORY_DATA_SIZE) == 0)
@@ -131,8 +131,8 @@ int run_tests(joypad_port_t port, uint8_t probe_byte)
         printf("Bio Sensor detected!\n");
     }
     else if (
-        probe_byte == JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_OFF ||
-        probe_byte == JOYBUS_N64_ACCESSORY_PROBE_CONTROLLER_PAK
+        probe_byte == 0x00 ||
+        probe_byte == JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_OFF
     )
     {
         if (memcmp(data, ALL_ZEROES, JOYBUS_N64_ACCESSORY_DATA_SIZE) == 0)
@@ -277,7 +277,7 @@ int main(void)
         if (p1.l) port = port <= JOYPAD_PORT_1 ? JOYPAD_PORT_4 : port - 1;
         if (p1.r) port = port >= JOYPAD_PORT_4 ? JOYPAD_PORT_1 : port + 1;
         // Test selection
-             if (p1.a)       loop_tests(port, JOYBUS_N64_ACCESSORY_PROBE_CONTROLLER_PAK);
+             if (p1.a)       loop_tests(port, 0x00);
         else if (p1.b)       loop_tests(port, JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_OFF);
         else if (p1.c_left)  loop_tests(port, JOYBUS_N64_ACCESSORY_PROBE_RUMBLE_PAK);
         else if (p1.c_right) loop_tests(port, JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_ON);
