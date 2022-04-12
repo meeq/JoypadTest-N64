@@ -35,9 +35,9 @@ const char *format_joypad_accessory_type(joypad_accessory_type_t accessory_type)
     case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
         return "Memory      ";
     case JOYPAD_ACCESSORY_TYPE_RUMBLE_PAK:
-        return "Rumble      ";
+        return "Rumble Pak  ";
     case JOYPAD_ACCESSORY_TYPE_TRANSFER_PAK:
-        return "Transfer    ";
+        return "Transfer Pak";
     case JOYPAD_ACCESSORY_TYPE_BIO_SENSOR:
         return "Bio Sensor  ";
     case JOYPAD_ACCESSORY_TYPE_SNAP_STATION:

@@ -51,16 +51,24 @@ static volatile uint8_t joypad_gcn_origin_input[JOYBUS_BLOCK_SIZE] = {0};
 volatile joypad_identifier_t joypad_identifiers_hot[JOYPAD_PORT_COUNT] = {0};
 volatile joypad_device_hot_t joypad_devices_hot[JOYPAD_PORT_COUNT] = {0};
 volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT] = {0};
+volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT] = {0};
 
 // "Cold" (stable) global state
 static joypad_device_cold_t joypad_devices_cold[JOYPAD_PORT_COUNT] = {0};
 
 static void joypad_device_reset(joypad_port_t port, joypad_identifier_t identifier)
 {
+    timer_link_t *timer = joypad_accessories_hot[port].transfer_pak_enable_timer;
+    if (timer) stop_timer(timer);
+
     joypad_identifiers_hot[port] = identifier;
     joypad_origins_hot[port] = JOYPAD_GCN_ORIGIN_INIT;
     memset((void *)&joypad_devices_cold[port], 0, sizeof(joypad_devices_cold[port]));
     memset((void *)&joypad_devices_hot[port], 0, sizeof(joypad_devices_hot[port]));
+    memset((void *)&joypad_accessories_hot[port], 0, sizeof(joypad_accessories_hot[port]));
+
+    // Restore the timer pointer on the cleared accessory
+    joypad_accessories_hot[port].transfer_pak_enable_timer = timer;
 }
 
 static void joypad_gcn_controller_rumble_toggle(joypad_port_t port, bool active)
@@ -158,12 +166,14 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
     const uint8_t *out_bytes = (void *)out_dwords;
     const joybus_cmd_identify_port_t *recv_cmd;
     volatile joypad_device_hot_t *device;
+    volatile joypad_accessory_t *accessory;
     bool devices_changed = false;
     size_t i = 0;
 
     JOYPAD_PORT_FOREACH (port)
     {
         device = &joypad_devices_hot[port];
+        accessory = &joypad_accessories_hot[port];
         recv_cmd = (void *)&out_bytes[i];
         i += sizeof(*recv_cmd);
 
@@ -190,7 +200,7 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
         else if (identifier == JOYBUS_IDENTIFIER_N64_CONTROLLER)
         {
             device->style = JOYPAD_STYLE_N64;
-            uint8_t prev_accessory_status = device->accessory.status;
+            uint8_t prev_accessory_status = accessory->status;
             uint8_t accessory_status = recv_cmd->status & JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_MASK;
             // Work-around third-party controllers that don't correctly report accessory status
             bool accessory_absent = (
@@ -207,23 +217,23 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
             );
             if (accessory_absent || accessory_changed)
             {
-                device->accessory.state = JOYPAD_ACCESSORY_STATE_IDLE;
-                device->accessory.type = JOYPAD_ACCESSORY_TYPE_NONE;
+                accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+                accessory->type = JOYPAD_ACCESSORY_TYPE_NONE;
                 device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
                 device->rumble_active = false;
             }
             if (accessory_changed)
             {
-                device->accessory.type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
+                accessory->type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
                 joypad_accessory_detect_async(port);
             }
-            device->accessory.status = accessory_status;
+            accessory->status = accessory_status;
         }
         else if (identifier == JOYBUS_IDENTIFIER_N64_MOUSE)
         {
             device->style = JOYPAD_STYLE_MOUSE;
         }
-        else if (identifier == JOYBUS_IDENTIFIER_GBA_VIA_LINK_CABLE)
+        else if (identifier == JOYBUS_IDENTIFIER_GBA_LINK_CABLE)
         {
             // TODO Support GBA as a controller
         }
@@ -556,13 +566,25 @@ joypad_style_t joypad_get_style(joypad_port_t port)
 joypad_accessory_type_t joypad_get_accessory_type(joypad_port_t port)
 {
     ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
-    return joypad_devices_hot[port].accessory.type;
+    return joypad_accessories_hot[port].type;
 }
 
-joypad_accessory_error_t joypad_get_accessory_error(joypad_port_t port)
+int joypad_get_accessory_state(joypad_port_t port)
 {
     ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
-    return joypad_devices_hot[port].accessory.error;
+    return joypad_accessories_hot[port].state;
+}
+
+int joypad_get_accessory_error(joypad_port_t port)
+{
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
+    return joypad_accessories_hot[port].error;
+}
+
+uint8_t joypad_get_accessory_transfer_pak_status(joypad_port_t port)
+{
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
+    return joypad_accessories_hot[port].transfer_pak_status.raw;
 }
 
 bool joypad_get_rumble_supported(joypad_port_t port)

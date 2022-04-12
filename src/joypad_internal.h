@@ -61,12 +61,12 @@ typedef struct joypad_device_hot_s
     joypad_style_t style;
     joypad_rumble_method_t rumble_method;
     bool rumble_active;
-    joypad_accessory_t accessory;
 } joypad_device_hot_t;
 
 extern volatile joypad_identifier_t joypad_identifiers_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_device_hot_t joypad_devices_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT];
+extern volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT];
 
 #ifdef __cplusplus
 }

@@ -267,8 +267,8 @@ typedef struct __attribute__((packed)) joypad_inputs_s
 /** @brief Joypad Axis enumeration */
 typedef enum
 {
-    JOYPAD_AXIS_STICK_X = offsetof(joypad_inputs_t, stick_x),
-    JOYPAD_AXIS_STICK_Y = offsetof(joypad_inputs_t, stick_y),
+    JOYPAD_AXIS_STICK_X  = offsetof(joypad_inputs_t, stick_x),
+    JOYPAD_AXIS_STICK_Y  = offsetof(joypad_inputs_t, stick_y),
     JOYPAD_AXIS_CSTICK_X = offsetof(joypad_inputs_t, cstick_x),
     JOYPAD_AXIS_CSTICK_Y = offsetof(joypad_inputs_t, cstick_y),
     JOYPAD_AXIS_ANALOG_L = offsetof(joypad_inputs_t, analog_l),
@@ -293,6 +293,7 @@ joypad_buttons_t joypad_get_buttons(joypad_port_t port);
 joypad_buttons_t joypad_get_buttons_pressed(joypad_port_t port);
 joypad_buttons_t joypad_get_buttons_released(joypad_port_t port);
 joypad_buttons_t joypad_get_buttons_held(joypad_port_t port);
+
 int joypad_get_axis_pressed(joypad_port_t port, joypad_axis_t axis);
 int joypad_get_axis_released(joypad_port_t port, joypad_axis_t axis);
 
