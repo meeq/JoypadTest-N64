@@ -24,7 +24,7 @@ int main(void)
     joypad_buttons_t pressed;
     int accessory_state;
     int accessory_error;
-    joypad_n64_transfer_pak_status_t transfer_pak_status;
+    joybus_n64_transfer_pak_status_t transfer_pak_status;
     volatile struct gameboy_cartridge_header gb_headers[JOYPAD_PORT_COUNT];
     memset((void *)gb_headers, 0, sizeof(gb_headers));
     uint8_t rumble_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
@@ -61,11 +61,11 @@ int main(void)
                     printf("Accessory State: %02d ", accessory_state);
                     printf("Error: %d\n", accessory_error);
                     printf("Transfer Pak Power: %d ", transfer_pak_status.power);
-                    printf("Access Mode:  %d ", transfer_pak_status.access_mode);
-                    printf("Cart Removed: %d\n", transfer_pak_status.cart_removed);
+                    printf("Access Mode:  %d ", transfer_pak_status.access);
+                    printf("Cart Removed: %d\n", transfer_pak_status.cart_pulled);
                     printf("                      ");
-                    printf("Reset Status: %d ", transfer_pak_status.reset_status);
-                    printf("Reset Detect: %d\n", transfer_pak_status.reset_detect);
+                    printf("Reset Status: %d ", transfer_pak_status.booting);
+                    printf("Reset Detect: %d\n", transfer_pak_status.reset);
                     printf("Cartridge Type: %02X ", gb_headers[port].cartridge_type);
                     printf("ROM Size Code: %02X ", gb_headers[port].rom_size_code);
                     printf("RAM Size Code: %02X\n", gb_headers[port].ram_size_code);
@@ -78,18 +78,18 @@ int main(void)
                     {
                         joypad_n64_transfer_pak_enable_async(port, false);
                     }
-                    if (transfer_pak_status.access_mode && pressed.c_left)
+                    if (transfer_pak_status.access && pressed.c_left)
                     {
                         void *read_data = (void *)&gb_headers[port];
                         size_t read_len = sizeof(gb_headers[port]);
                         joypad_n64_transfer_pak_load_async(port, 0x0100, read_data, read_len);
                     }
-                    if (transfer_pak_status.access_mode && pressed.c_up)
+                    if (transfer_pak_status.access && pressed.c_up)
                     {
                         memset(rumble_data, 0x08, sizeof(rumble_data));
                         joypad_n64_transfer_pak_store_async(port, 0x4000, rumble_data, sizeof(rumble_data));
                     }
-                    if (transfer_pak_status.access_mode && pressed.c_down)
+                    if (transfer_pak_status.access && pressed.c_down)
                     {
                         memset(rumble_data, 0x00, sizeof(rumble_data));
                         joypad_n64_transfer_pak_store_async(port, 0x4000, rumble_data, sizeof(rumble_data));

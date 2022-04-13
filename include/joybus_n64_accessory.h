@@ -55,6 +55,42 @@ extern "C" {
 #define JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_OFF 0xFE
 /** @} */
 
+/**
+ * @anchor JOYBUS_N64_TRANSFER_PAK_STATUS
+ * @name Joybus N64 Transfer Pak status flags
+ * @{
+ */
+#define JOYBUS_N64_TRANSFER_PAK_STATUS_OFF          0
+#define JOYBUS_N64_TRANSFER_PAK_STATUS_ACCESS       (1<<0)
+#define JOYBUS_N64_TRANSFER_PAK_STATUS_BOOTING      (1<<2)
+#define JOYBUS_N64_TRANSFER_PAK_STATUS_RESET        (1<<3)
+#define JOYBUS_N64_TRANSFER_PAK_STATUS_CART_PULLED  (1<<6)
+#define JOYBUS_N64_TRANSFER_PAK_STATUS_POWER        (1<<7)
+/** @} */
+
+/**
+ * @brief Joybus N64 Transfer Pak Status wrapper.
+ * 
+ * Type union that unpacks the raw Transfer Pak status byte
+ * to conveniently access the flags through a struct.
+ * If you prefer bitwise operations, you can use
+ * #JOYBUS_N64_TRANSFER_PAK_STATUS values as masks.
+ */
+typedef union
+{
+    uint8_t raw;
+    struct __attribute__((packed))
+    {
+        unsigned access : 1;
+        unsigned : 1;
+        unsigned booting : 1;
+        unsigned reset : 1;
+        unsigned : 2;
+        unsigned cart_pulled : 1;
+        unsigned power : 1;
+    };
+} joybus_n64_transfer_pak_status_t;
+
 /** @brief Joybus N64 accessory data CRC status values */
 typedef enum
 {

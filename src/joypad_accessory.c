@@ -17,9 +17,11 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
 static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_n64_transfer_pak_enable_read_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_n64_transfer_pak_enable_write_callback(uint64_t *out_dwords, void *ctx);
-static void joypad_n64_transfer_pak_enable_timer_callback(int ovfl, void *ctx);
+static void joypad_n64_transfer_pak_wait_timer_callback(int ovfl, void *ctx);
 static void joypad_n64_transfer_pak_load_read_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_n64_transfer_pak_load_write_callback(uint64_t *out_dwords, void *ctx);
+static void joypad_n64_transfer_pak_store_read_callback(uint64_t *out_dwords, void *ctx);
+static void joypad_n64_transfer_pak_store_write_callback(uint64_t *out_dwords, void *ctx);
 
 static bool joypad_accessory_read_crc_error_check(
     joypad_port_t port,
@@ -131,6 +133,76 @@ static bool joypad_accessory_write_crc_error_check(
     }
 }
 
+
+void joypad_n64_transfer_pak_wait_timer_init(joypad_port_t port)
+{
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
+    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+    // Ensure there is a disabled timer ready to restart:
+    if (!accessory->transfer_pak_wait_timer)
+    {
+        // The Transfer Pak takes about 200 milliseconds to fully power-on
+        // after being probed; sadly, we must use a hard-coded delay
+        accessory->transfer_pak_wait_timer = new_timer_context(
+            TIMER_TICKS(200 * 1000), TF_ONE_SHOT | TF_DISABLED,
+            joypad_n64_transfer_pak_wait_timer_callback, (void *)port
+        );
+    }
+}
+
+static void joypad_n64_transfer_pak_wait_timer_callback(int ovfl, void *ctx)
+{
+    joypad_port_t port = (joypad_port_t)ctx;
+    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+    joypad_accessory_state_t state = accessory->state;
+    if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_WAIT)
+    {
+        // Step 4D: Write access flag to Transfer Pak status register
+        uint8_t write_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+        memset(write_data, JOYBUS_N64_TRANSFER_PAK_STATUS_ACCESS, sizeof(write_data));
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_STATUS_WRITE;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_n64_accessory_write_async(
+            port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_STATUS, write_data,
+            joypad_accessory_detect_write_callback, ctx
+        );
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_STATUS_WAIT)
+    {
+        // Step 4F: Read Transfer Pak status register to see if there is a cartridge
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_STATUS_READ;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_n64_accessory_read_async(
+            port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_STATUS,
+            joypad_accessory_detect_read_callback, ctx
+        );
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_PROBE_WAIT)
+    {
+        uint8_t write_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+        memset(write_data, JOYBUS_N64_TRANSFER_PAK_STATUS_ACCESS, sizeof(write_data));
+        accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_WRITE;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_n64_accessory_write_async(
+            port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_STATUS, write_data,
+            joypad_n64_transfer_pak_enable_write_callback, ctx
+        );
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_WAIT)
+    {
+        accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_READ;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_n64_accessory_read_async(
+            port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_STATUS,
+            joypad_n64_transfer_pak_enable_read_callback, ctx
+        );
+    }
+}
+
 static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
@@ -161,7 +233,7 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
         {
             // Step 3A: Write probe value to detect Rumble Pak
             memset(write_data, JOYBUS_N64_ACCESSORY_PROBE_RUMBLE_PAK, sizeof(write_data));
-            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_WRITE;
+            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_WRITE;
             accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
             accessory->retries = 0;
             joybus_n64_accessory_write_async(
@@ -170,7 +242,7 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
             );
         }
     }
-    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_READ)
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_READ)
     {
         if (recv_cmd->data[0] == JOYBUS_N64_ACCESSORY_PROBE_RUMBLE_PAK)
         {
@@ -195,7 +267,7 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
         {
             // Step 4A: Write probe value to detect Transfer Pak
             memset(write_data, JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_ON, sizeof(write_data));
-            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_ON;
+            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_ON;
             accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
             accessory->retries = 0;
             joybus_n64_accessory_write_async(
@@ -204,25 +276,112 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
             );
         }
     }
-    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_READ)
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_READ)
     {
         if (recv_cmd->data[0] == JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_ON)
         {
-            // Step 4C: Probe reports that this is a Transfer Pak; turn off Transfer Pak
-            memset(write_data, JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_OFF, sizeof(write_data));
-            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_OFF;
-            accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
-            accessory->retries = 0;
-            joybus_n64_accessory_write_async(
-                port, JOYBUS_N64_ACCESSORY_ADDR_PROBE, write_data,
-                joypad_accessory_detect_write_callback, ctx
-            );
+            // Step 4C: Probe reports that this is a Transfer Pak; wait to access cart!
+            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_WAIT;
+            timer_link_t *timer = accessory->transfer_pak_wait_timer;
+            assertf(timer, "transfer_pak_wait_timer is NULL on port %d", port + 1);
+            restart_timer(timer);
         }
         else
         {
             // Failure: Unable to determine which accessory is connected
             accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
             accessory->type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
+            accessory->transfer_pak_status.raw = JOYBUS_N64_TRANSFER_PAK_STATUS_OFF;
+        }
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_STATUS_READ)
+    {
+        joybus_n64_transfer_pak_status_t status = { .raw = recv_cmd->data[0] };
+        accessory->transfer_pak_status = status;
+        if (status.power && status.access)
+        {
+            // Step 4G: Write bank 0 to Transfer Pak bank register
+            // The goal here is to read the cartridge header
+            uint8_t bank = 0;
+            uint16_t cart_addr = 0x0100;
+            uint16_t tpak_addr = cart_addr + JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_CART;
+            uint8_t *dst = (void *)&accessory->transfer_pak_cart;
+            size_t len = sizeof(accessory->transfer_pak_cart);
+            accessory->transfer_pak_io = (joypad_n64_transfer_pak_io_t){
+                .start = dst,
+                .end = dst + len,
+                .cursor = dst,
+                .bank = bank,
+                .cart_addr = cart_addr,
+                .tpak_addr = tpak_addr,
+            };
+
+            memset(write_data, bank, sizeof(write_data));
+            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_BANK_WRITE;
+            accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+            accessory->retries = 0;
+            joybus_n64_accessory_write_async(
+                port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_BANK, write_data,
+                joypad_accessory_detect_write_callback, ctx
+            );
+        }
+        else
+        {
+            // Skip to Step 4I: Write probe value to turn off Transfer Pak
+            memset(write_data, JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_OFF, sizeof(write_data));
+            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_OFF;
+            accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+            accessory->retries = 0;
+            joybus_n64_accessory_write_async(
+                port, JOYBUS_N64_ACCESSORY_ADDR_PROBE, write_data,
+                joypad_accessory_detect_write_callback, (void *)port
+            );
+        }
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_DATA_READ)
+    {
+        volatile joypad_n64_transfer_pak_io_t *io = &accessory->transfer_pak_io;
+        memcpy(io->cursor, recv_cmd->data, JOYBUS_N64_ACCESSORY_DATA_SIZE);
+        uint8_t *cursor = io->cursor += JOYBUS_N64_ACCESSORY_DATA_SIZE;
+        uint16_t tpak_addr = io->tpak_addr += JOYBUS_N64_ACCESSORY_DATA_SIZE;
+        if (cursor < io->end)
+        {
+            // Continue reading cartridge header data
+            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_DATA_READ;
+            accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+            accessory->retries = 0;
+            joybus_n64_accessory_read_async(
+                port, tpak_addr,
+                joypad_accessory_detect_read_callback, ctx
+            );
+        }
+        else
+        {
+            // Finished reading cartridge header data
+            gb_cart_type_t cart_type = accessory->transfer_pak_cart.cartridge_type;
+            if (
+                cart_type == GB_MBC5_RUMBLE ||
+                cart_type == GB_MBC5_RUMBLE_RAM ||
+                cart_type == GB_MBC5_RUMBLE_RAM_BATTERY
+            )
+            {
+                // If the cartridge supports rumble, leave the Transfer Pak on
+                accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+                accessory->type = JOYPAD_ACCESSORY_TYPE_TRANSFER_PAK;
+                device->rumble_method = JOYPAD_RUMBLE_METHOD_N64_TRANSFER_PAK_MBC5;
+            }
+            else
+            {
+                // Step 4I: Write probe value to turn off Transfer Pak
+                memset(write_data, JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_OFF, sizeof(write_data));
+                accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_OFF;
+                accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+                accessory->retries = 0;
+                joybus_n64_accessory_write_async(
+                    port, JOYBUS_N64_ACCESSORY_ADDR_PROBE, write_data,
+                    joypad_accessory_detect_write_callback, (void *)port
+                );
+            }
         }
     }
 }
@@ -265,10 +424,10 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
             joypad_accessory_detect_read_callback, ctx
         );
     }
-    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_WRITE)
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_WRITE)
     {
         // Step 3B: Read probe value to detect Rumble Pak
-        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_READ;
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_READ;
         accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
         accessory->retries = 0;
         joybus_n64_accessory_read_async(
@@ -276,10 +435,10 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
             joypad_accessory_detect_read_callback, ctx
         );
     }
-    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_ON)
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_ON)
     {
         // Step 4B: Read probe value to detect Transfer Pak
-        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_READ;
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_READ;
         accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
         accessory->retries = 0;
         joybus_n64_accessory_read_async(
@@ -287,11 +446,31 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
             joypad_accessory_detect_read_callback, ctx
         );
     }
-    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_OFF)
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_STATUS_WRITE)
+    {
+        // Step 4E: Wait for Game Boy cartridge in Transfer Pak to reset
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_STATUS_WAIT;
+        timer_link_t *timer = accessory->transfer_pak_wait_timer;
+        assertf(timer, "transfer_pak_wait_timer is NULL on port %d", port + 1);
+        restart_timer(timer);
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_BANK_WRITE)
+    {
+        // Step 4H: Read cartridge header through Transfer Pak data register
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_DATA_READ;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_n64_accessory_read_async(
+            port, accessory->transfer_pak_io.tpak_addr,
+            joypad_accessory_detect_read_callback, ctx
+        );
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_OFF)
     {
         // Success: Transfer Pak has been probed and powered off
         accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
         accessory->type = JOYPAD_ACCESSORY_TYPE_TRANSFER_PAK;
+        accessory->transfer_pak_status.raw = JOYBUS_N64_TRANSFER_PAK_STATUS_OFF;
     }
 }
 
@@ -305,15 +484,23 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
  * Step 3B: Read probe value to detect Rumble Pak
  * Step 4A: Write probe value to detect Transfer Pak
  * Step 4B: Read probe value to detect Transfer Pak
- * Step 4C: Turn off Transfer Pak if detected
+ * Step 4C: Wait for Transfer Pak to finish powering on
+ * Step 4D: Write access flag to Transfer Pak status register
+ * Step 4E: Wait for Game Boy cartridge in Transfer Pak to reset
+ * Step 4F: Read Transfer Pak status register to see if there is a cartridge
+ * Step 4G: Write bank 0 to Transfer Pak bank register
+ * Step 4H: Read cartridge header through Transfer Pak data register
+ * Step 4I: Write probe value to turn off Transfer Pak
  * 
  * @param[in] port Which controller port to detect the accessory on
  */
 void joypad_accessory_detect_async(joypad_port_t port)
 {
+    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     if (accessory->state == JOYPAD_ACCESSORY_STATE_IDLE)
     {
+        joypad_n64_transfer_pak_wait_timer_init(port);
         // Step 1: Ensure Transfer Pak is turned off
         uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
         memset(data, JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_OFF, sizeof(data));
@@ -379,8 +566,8 @@ static void joypad_n64_transfer_pak_enable_read_callback(uint64_t *out_dwords, v
     }
     else if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_READ)
     {
-        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
         accessory->transfer_pak_status.raw = recv_cmd->data[0];
+        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
     }
 }
 
@@ -403,51 +590,22 @@ static void joypad_n64_transfer_pak_enable_write_callback(uint64_t *out_dwords, 
         if (recv_cmd->data[0] == JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_ON)
         {
             accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_PROBE_WAIT;
-            timer_link_t *timer = accessory->transfer_pak_enable_timer;
-            assertf(timer, "transfer_pak_enable_timer is NULL on port %d", port + 1);
+            timer_link_t *timer = accessory->transfer_pak_wait_timer;
+            assertf(timer, "transfer_pak_wait_timer is NULL on port %d", port + 1);
             restart_timer(timer);
         }
         else
         {
             accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
-            accessory->transfer_pak_status.raw = 0x00;
+            accessory->transfer_pak_status.raw = JOYBUS_N64_TRANSFER_PAK_STATUS_OFF;
         }
     }
     else if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_WRITE)
     {
         accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_WAIT;
-        timer_link_t *timer = accessory->transfer_pak_enable_timer;
-        assertf(timer, "transfer_pak_enable_timer is NULL on port %d", port + 1);
+        timer_link_t *timer = accessory->transfer_pak_wait_timer;
+        assertf(timer, "transfer_pak_wait_timer is NULL on port %d", port + 1);
         restart_timer(timer);
-    }
-}
-
-static void joypad_n64_transfer_pak_enable_timer_callback(int ovfl, void *ctx)
-{
-    joypad_port_t port = (joypad_port_t)ctx;
-    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
-    joypad_accessory_state_t state = accessory->state;
-    if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_PROBE_WAIT)
-    {
-        accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_WRITE;
-        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
-        accessory->retries = 0;
-        uint8_t write_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
-        memset(write_data, 0x01, sizeof(write_data));
-        joybus_n64_accessory_write_async(
-            port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_STATUS, write_data,
-            joypad_n64_transfer_pak_enable_write_callback, ctx
-        );
-    }
-    else if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_WAIT)
-    {
-        accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_READ;
-        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
-        accessory->retries = 0;
-        joybus_n64_accessory_read_async(
-            port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_STATUS,
-            joypad_n64_transfer_pak_enable_read_callback, ctx
-        );
     }
 }
 
@@ -455,16 +613,7 @@ void joypad_n64_transfer_pak_enable_async(joypad_port_t port, bool enabled)
 {
     ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
-    // Ensure there is a disabled timer ready to restart:
-    if (!accessory->transfer_pak_enable_timer)
-    {
-        // The Transfer Pak takes about 200 milliseconds to fully power-on
-        // after being probed; sadly, we must use a hard-coded delay
-        accessory->transfer_pak_enable_timer = new_timer_context(
-            TIMER_TICKS(200 * 1000), TF_ONE_SHOT | TF_DISABLED,
-            joypad_n64_transfer_pak_enable_timer_callback, (void *)port
-        );
-    }
+    
     // Turn the Transfer Pak on or off with magic probe values
     uint8_t probe_value = enabled
         ? JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_ON
@@ -497,7 +646,30 @@ static void joypad_n64_transfer_pak_load_read_callback(uint64_t *out_dwords, voi
         return; // Accessory communication error!
     }
     volatile joypad_n64_transfer_pak_io_t *io = &accessory->transfer_pak_io;
-    if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_DATA_READ)
+    if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_STATUS_READ)
+    {
+        joybus_n64_transfer_pak_status_t status = { .raw = recv_cmd->data[0] };
+        accessory->transfer_pak_status = status;
+        if (!status.access || !status.power || status.cart_pulled)
+        {
+            // The Game Boy cartridge is no longer accessible; bail!
+            accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+            accessory->error = JOYPAD_ACCESSORY_ERROR_TRANSFER_PAK_STATUS_CHANGE;
+            return;
+        }
+
+        // Proceed with reading; select a Transfer Pak data bank
+        uint8_t write_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+        memset(write_data, io->bank, sizeof(write_data));
+        accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_BANK_WRITE;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_n64_accessory_write_async(
+            port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_BANK, write_data,
+            joypad_n64_transfer_pak_load_write_callback, ctx
+        );
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_DATA_READ)
     {
         memcpy(io->cursor, recv_cmd->data, JOYBUS_N64_ACCESSORY_DATA_SIZE);
         uint8_t *cursor = io->cursor += JOYBUS_N64_ACCESSORY_DATA_SIZE;
@@ -574,12 +746,6 @@ void joypad_n64_transfer_pak_load_async(joypad_port_t port, uint16_t cart_addr, 
     uint8_t bank = cart_addr / JOYBUS_N64_ACCESSORY_TRANSFER_BANK_SIZE;
     uint16_t tpak_addr = JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_CART;
     tpak_addr += cart_addr % JOYBUS_N64_ACCESSORY_TRANSFER_BANK_SIZE;
-
-    uint8_t write_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
-    memset(write_data, bank, sizeof(write_data));
-    accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_BANK_WRITE;
-    accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
-    accessory->retries = 0;
     accessory->transfer_pak_io = (joypad_n64_transfer_pak_io_t){
         .start = dst,
         .end = dst + len,
@@ -588,12 +754,55 @@ void joypad_n64_transfer_pak_load_async(joypad_port_t port, uint16_t cart_addr, 
         .cart_addr = cart_addr,
         .tpak_addr = tpak_addr,
     };
-    joybus_n64_accessory_write_async(
-        port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_BANK, write_data,
-        joypad_n64_transfer_pak_load_write_callback, (void *)port
+
+    accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_STATUS_READ;
+    accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+    accessory->retries = 0;
+    joybus_n64_accessory_read_async(
+        port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_STATUS,
+        joypad_n64_transfer_pak_load_read_callback, (void *)port
     );
 }
 
+static void joypad_n64_transfer_pak_store_read_callback(uint64_t *out_dwords, void *ctx)
+{
+    const uint8_t *out_bytes = (void *)out_dwords;
+    joypad_port_t port = (joypad_port_t)ctx;
+    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+    joypad_accessory_state_t state = accessory->state;
+    if (!joypad_accessory_state_is_transfer_storing(state)) return;
+
+    const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
+    joybus_callback_t retry_callback = joypad_n64_transfer_pak_store_read_callback;
+    if (joypad_accessory_read_crc_error_check(port, recv_cmd, retry_callback, ctx))
+    {
+        return; // Accessory communication error!
+    }
+    if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_STATUS_READ)
+    {
+        joybus_n64_transfer_pak_status_t status = { .raw = recv_cmd->data[0] };
+        accessory->transfer_pak_status = status;
+        if (!status.access || !status.power || status.cart_pulled)
+        {
+            // The Game Boy cartridge is no longer accessible; bail!
+            accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+            accessory->error = JOYPAD_ACCESSORY_ERROR_TRANSFER_PAK_STATUS_CHANGE;
+            return;
+        }
+
+        // Proceed with writing; select a Transfer Pak data bank
+        volatile joypad_n64_transfer_pak_io_t *io = &accessory->transfer_pak_io;
+        uint8_t write_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+        memset(write_data, io->bank, sizeof(write_data));
+        accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_BANK_WRITE;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_n64_accessory_write_async(
+            port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_BANK, write_data,
+            joypad_n64_transfer_pak_store_write_callback, ctx
+        );
+    }
+}
 
 static void joypad_n64_transfer_pak_store_write_callback(uint64_t *out_dwords, void *ctx)
 {
@@ -671,12 +880,6 @@ void joypad_n64_transfer_pak_store_async(joypad_port_t port, uint16_t cart_addr,
     uint8_t bank = cart_addr / JOYBUS_N64_ACCESSORY_TRANSFER_BANK_SIZE;
     uint16_t tpak_addr = JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_CART;
     tpak_addr += cart_addr % JOYBUS_N64_ACCESSORY_TRANSFER_BANK_SIZE;
-
-    uint8_t write_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
-    memset(write_data, bank, sizeof(write_data));
-    accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_BANK_WRITE;
-    accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
-    accessory->retries = 0;
     accessory->transfer_pak_io = (joypad_n64_transfer_pak_io_t){
         .start = src,
         .end = src + len,
@@ -685,8 +888,12 @@ void joypad_n64_transfer_pak_store_async(joypad_port_t port, uint16_t cart_addr,
         .cart_addr = cart_addr,
         .tpak_addr = tpak_addr,
     };
-    joybus_n64_accessory_write_async(
-        port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_BANK, write_data,
-        joypad_n64_transfer_pak_store_write_callback, (void *)port
+
+    accessory->state = JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_STATUS_READ;
+    accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+    accessory->retries = 0;
+    joybus_n64_accessory_read_async(
+        port, JOYBUS_N64_ACCESSORY_ADDR_TRANSFER_STATUS,
+        joypad_n64_transfer_pak_store_read_callback, (void *)port
     );
 }

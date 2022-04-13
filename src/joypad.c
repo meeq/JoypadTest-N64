@@ -58,7 +58,7 @@ static joypad_device_cold_t joypad_devices_cold[JOYPAD_PORT_COUNT] = {0};
 
 static void joypad_device_reset(joypad_port_t port, joypad_identifier_t identifier)
 {
-    timer_link_t *timer = joypad_accessories_hot[port].transfer_pak_enable_timer;
+    timer_link_t *timer = joypad_accessories_hot[port].transfer_pak_wait_timer;
     if (timer) stop_timer(timer);
 
     joypad_identifiers_hot[port] = identifier;
@@ -68,7 +68,7 @@ static void joypad_device_reset(joypad_port_t port, joypad_identifier_t identifi
     memset((void *)&joypad_accessories_hot[port], 0, sizeof(joypad_accessories_hot[port]));
 
     // Restore the timer pointer on the cleared accessory
-    joypad_accessories_hot[port].transfer_pak_enable_timer = timer;
+    joypad_accessories_hot[port].transfer_pak_wait_timer = timer;
 }
 
 static void joypad_gcn_controller_rumble_toggle(joypad_port_t port, bool active)
