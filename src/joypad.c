@@ -54,6 +54,7 @@ volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT] = {0};
 volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT] = {0};
 
 // "Cold" (stable) global state
+static bool joypad_initialized = false;
 static joypad_device_cold_t joypad_devices_cold[JOYPAD_PORT_COUNT] = {0};
 
 static void joypad_device_reset(joypad_port_t port, joypad_identifier_t identifier)
@@ -367,6 +368,8 @@ static void joypad_vi_interrupt_callback(void)
 
 void joypad_init(void)
 {
+    if (joypad_initialized) return;
+
     JOYPAD_PORT_FOREACH (port)
     {
         joypad_device_reset(port, JOYBUS_IDENTIFIER_UNKNOWN);
@@ -378,6 +381,8 @@ void joypad_init(void)
 
 void joypad_close(void)
 {
+    if (!joypad_initialized) return;
+
     unregister_VI_handler(joypad_vi_interrupt_callback);
 }
 
@@ -607,7 +612,7 @@ void joypad_set_rumble_active(joypad_port_t port, bool active)
     joypad_rumble_method_t rumble_method = device->rumble_method;
     if (rumble_method == JOYPAD_RUMBLE_METHOD_N64_RUMBLE_PAK)
     {
-        joypad_n64_rumble_pak_toggle_async(port, active);
+        joypad_n64_rumble_pak_motor_async(port, active);
     }
     else if (rumble_method == JOYPAD_RUMBLE_METHOD_GCN_CONTROLLER)
     {

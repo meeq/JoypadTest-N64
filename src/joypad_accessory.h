@@ -37,12 +37,6 @@ typedef enum
     JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_READ,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_ON,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_READ,
-    JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_WAIT,
-    JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_STATUS_WRITE,
-    JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_STATUS_WAIT,
-    JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_STATUS_READ,
-    JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_BANK_WRITE,
-    JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_DATA_READ,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_OFF,
     // Rumble Pak motor control states
     JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE,
@@ -52,11 +46,11 @@ typedef enum
     JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_WRITE,
     JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_WAIT,
     JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_READ,
-    // Transfer Pak cartridge bank read states
+    // Transfer Pak cartridge read states
     JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_STATUS_READ,
     JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_BANK_WRITE,
     JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_DATA_READ,
-    // Transfer Pak cartridge bank write states
+    // Transfer Pak cartridge write states
     JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_STATUS_READ,
     JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_BANK_WRITE,
     JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_DATA_WRITE,
@@ -85,6 +79,7 @@ typedef enum
     JOYPAD_ACCESSORY_ERROR_ABSENT,
     JOYPAD_ACCESSORY_ERROR_CHECKSUM,
     JOYPAD_ACCESSORY_ERROR_TRANSFER_PAK_STATUS_CHANGE,
+    JOYPAD_ACCESSORY_ERROR_UNKNOWN,
 } joypad_accessory_error_t;
 
 typedef struct
@@ -106,7 +101,6 @@ typedef struct joypad_accessory_s
     size_t retries;
     timer_link_t *transfer_pak_wait_timer;
     joybus_n64_transfer_pak_status_t transfer_pak_status;
-    struct gameboy_cartridge_header transfer_pak_cart;
     joypad_n64_transfer_pak_io_t transfer_pak_io;
 } joypad_accessory_t;
 
@@ -116,7 +110,7 @@ int joypad_get_accessory_error(joypad_port_t port);
 uint8_t joypad_get_accessory_transfer_pak_status(joypad_port_t port);
 
 void joypad_accessory_detect_async(joypad_port_t port);
-void joypad_n64_rumble_pak_toggle_async(joypad_port_t port, bool active);
+void joypad_n64_rumble_pak_motor_async(joypad_port_t port, bool active);
 void joypad_n64_transfer_pak_enable_async(joypad_port_t port, bool enabled);
 void joypad_n64_transfer_pak_load_async(joypad_port_t port, uint16_t cart_addr, void *dst, size_t len);
 void joypad_n64_transfer_pak_store_async(joypad_port_t port, uint16_t cart_addr, void *src, size_t len);

@@ -26,7 +26,6 @@ typedef enum
 {
     JOYPAD_RUMBLE_METHOD_NONE = 0,
     JOYPAD_RUMBLE_METHOD_N64_RUMBLE_PAK,
-    JOYPAD_RUMBLE_METHOD_N64_TRANSFER_PAK_MBC5, // Not yet implemented
     JOYPAD_RUMBLE_METHOD_GCN_CONTROLLER,
 } joypad_rumble_method_t;
 
