@@ -254,12 +254,6 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
             accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
             accessory->type = JOYPAD_ACCESSORY_TYPE_BIO_SENSOR;
         }
-        else if (probe_value == JOYBUS_N64_ACCESSORY_PROBE_SNAP_STATION)
-        {
-            // Success: Snap Station responds to all probes with probe value
-            accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
-            accessory->type = JOYPAD_ACCESSORY_TYPE_BIO_SENSOR;
-        }
         else
         {
             // Step 4A: Write probe value to detect Transfer Pak
@@ -287,6 +281,28 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
                 port, JOYBUS_N64_ACCESSORY_ADDR_PROBE, write_data,
                 joypad_accessory_detect_write_callback, (void *)port
             );
+        }
+        else
+        {
+            // Step 5A: Write probe value to detect Snap Station
+            memset(write_data, JOYBUS_N64_ACCESSORY_PROBE_SNAP_STATION, sizeof(write_data));
+            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_WRITE;
+            accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+            accessory->retries = 0;
+            joybus_n64_accessory_write_async(
+                port, JOYBUS_N64_ACCESSORY_ADDR_PROBE, write_data,
+                joypad_accessory_detect_write_callback, ctx
+            );
+        }
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_READ)
+    {
+        uint8_t probe_value = recv_cmd->data[0];
+        if (probe_value == JOYBUS_N64_ACCESSORY_PROBE_SNAP_STATION)
+        {
+            // Success: Probe reports that this is a Snap Station
+            accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+            accessory->type = JOYPAD_ACCESSORY_TYPE_SNAP_STATION;
         }
         else
         {
@@ -367,6 +383,17 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
         accessory->type = JOYPAD_ACCESSORY_TYPE_TRANSFER_PAK;
         accessory->transfer_pak_status.power = 0;
     }
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_WRITE)
+    {
+        // Step 5B: Read probe value to detect Snap Station
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_READ;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_n64_accessory_read_async(
+            port, JOYBUS_N64_ACCESSORY_ADDR_PROBE,
+            joypad_accessory_detect_read_callback, ctx
+        );
+    }
 }
 
 /**
@@ -380,6 +407,8 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
  * Step 4A: Write probe value to detect Transfer Pak
  * Step 4B: Read probe value to detect Transfer Pak
  * Step 4C: Write probe value to turn off Transfer Pak
+ * Step 5A: Write probe value to detect Snap Station
+ * Step 5B: Read probe value to detect Snap Station
  * 
  * @param[in] port Which controller port to detect the accessory on
  */

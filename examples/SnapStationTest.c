@@ -16,18 +16,18 @@ const char *accessory_probe_format(uint8_t probe_value)
 {
     switch (probe_value)
     {
-    case 0x00:
-        return "Inactive";
-    case JOYBUS_N64_ACCESSORY_PROBE_RUMBLE_PAK:
-        return "Rumble Pak";
-    case JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_ON:
-        return "Active Transfer Pak";
-    case JOYBUS_N64_ACCESSORY_PROBE_BIO_SENSOR:
-        return "Bio Sensor";
-    case JOYBUS_N64_ACCESSORY_PROBE_SNAP_STATION:
-        return "Active Snap Station";
-    default:
-        return "Unknown";
+        case 0x00:
+            return "Inactive";
+        case JOYBUS_N64_ACCESSORY_PROBE_RUMBLE_PAK:
+            return "Rumble Pak";
+        case JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_ON:
+            return "Active Transfer Pak";
+        case JOYBUS_N64_ACCESSORY_PROBE_BIO_SENSOR:
+            return "Bio Sensor";
+        case JOYBUS_N64_ACCESSORY_PROBE_SNAP_STATION:
+            return "Active Snap Station";
+        default:
+            return "Unknown";
     }
 }
 
@@ -36,11 +36,11 @@ static const char *accessory_data_crc_status_format(int crc_status)
     switch (crc_status)
     {
         case JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK:
-            return "OK";
+            return "CRC OK";
         case JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_NO_PAK:
             return "No Pak";
         case JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_MISMATCH:
-            return "Mismatch";
+            return "CRC Mismatch";
         default:
             return "Unknown";
     }
@@ -96,7 +96,7 @@ static void snap_station_probe_read(void)
     if (crc_status != JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK)
     {
         const char *crc_error = accessory_data_crc_status_format(crc_status);
-        printf("Accessory Read data CRC error: %s\n", crc_error);
+        printf("Accessory Read error: %s\n", crc_error);
         wait_for_start_button();
     }
     else
@@ -123,7 +123,7 @@ static void snap_station_state_read(void)
         if (crc_status != JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK)
         {
             const char *crc_error = accessory_data_crc_status_format(crc_status);
-            printf("Accessory Read data CRC error: %s\n", crc_error);
+            printf("Accessory Read error: %s\n", crc_error);
             wait_for_start_button();
             break;
         }
@@ -149,12 +149,12 @@ static void snap_station_command(uint8_t command)
     uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE] = {0};
     data[sizeof(data)-1] = command;
     const char * command_str = snap_station_state_format(command);
-    printf("Writing 0x%02X (%s) Command...\n", command, command_str);
+    printf("Writing 0x%02X (%s) command...\n", command, command_str);
     int crc_status = joybus_n64_accessory_write_sync(JOYPAD_PORT_4, addr, data);
     if (crc_status != JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK)
     {
         const char *crc_error = accessory_data_crc_status_format(crc_status);
-        printf("Accessory Write data CRC error: %s\n", crc_error);
+        printf("Accessory Write error: %s\n", crc_error);
         wait_for_start_button();
     }
     else
@@ -185,7 +185,7 @@ int main(void)
     {
         console_clear();
 
-        printf("Snap Station Test v1 by Meeq\n\n");
+        printf("Snap Station Test v2 by Meeq\n\n");
 
         joypad_scan();
         pressed = joypad_get_buttons_pressed(JOYPAD_PORT_1);
@@ -193,17 +193,17 @@ int main(void)
         if (joypad_get_style(JOYPAD_PORT_4) != JOYPAD_STYLE_N64)
         {
             printf("Please Connect a Snap Station on port 4 to test\n");
-            console_render();
-            continue;
         }
-        if (joypad_get_accessory_type(JOYPAD_PORT_4) != JOYPAD_ACCESSORY_TYPE_SNAP_STATION)
+        else if (joypad_get_accessory_type(JOYPAD_PORT_4) != JOYPAD_ACCESSORY_TYPE_SNAP_STATION)
         {
             printf("Accessory on port 4 is not a Snap Station\n");
-            console_render();
-            continue;
+        }
+        else
+        {
+            printf("Snap Station detected on port 4!\n");
         }
         
-        printf("Snap Station detected on port 4! Command List:\n");
+        printf("Command List:\n");
         printf("R       = Read State\n");
         printf("A       = Pre-Save      (0x%02X)\n", JOYBUS_N64_SNAP_STATION_STATE_PRE_SAVE);
         printf("B       = Post-Save     (0x%02X)\n", JOYBUS_N64_SNAP_STATION_STATE_POST_SAVE);

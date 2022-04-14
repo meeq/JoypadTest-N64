@@ -38,6 +38,8 @@ typedef enum
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_ON,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_READ,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_OFF,
+    JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_WRITE,
+    JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_READ,
     // Rumble Pak motor control states
     JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE,
     // Transfer Pak power control states
@@ -58,7 +60,7 @@ typedef enum
 
 #define joypad_accessory_state_is_detecting(state) \
     ((state) >= JOYPAD_ACCESSORY_STATE_DETECT_INIT && \
-     (state) <= JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_OFF)
+     (state) <= JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_READ)
 
 #define joypad_accessory_state_is_transfer_enabling(state) \
     ((state) >= JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_PROBE_WRITE && \
