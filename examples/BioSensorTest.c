@@ -4,6 +4,12 @@
  * @brief N64 test ROM for Bio Sensor subsystem
  */
 
+#ifdef ROM_VERSION
+static const char ROM_TITLE[] = "Bio Sensor Subsystem Test " ROM_VERSION " by Meeq";
+#else
+static const char ROM_TITLE[] = "Bio Sensor Subsystem Test by Meeq";
+#endif
+
 #include <string.h>
 #include <libdragon.h>
 
@@ -40,7 +46,7 @@ int main(void)
         console_clear();
         joypad_scan();
 
-        printf("Bio Sensor Subsystem Test\n");
+        printf("%s\n\n", ROM_TITLE);
         printf("Connect up to 4 controllers with Bio Sensor accessories\n");
         printf("\n");
         printf("Press A to start reading the Bio Sensor\n");

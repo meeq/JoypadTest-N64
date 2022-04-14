@@ -4,6 +4,12 @@
  * @brief N64 test ROM for Joypad subsystem
  */
 
+#ifdef ROM_VERSION
+static const char ROM_TITLE[] = "Joypad Accessory Probe Test " ROM_VERSION " by Meeq";
+#else
+static const char ROM_TITLE[] = "Joypad Accessory Probe Test by Meeq";
+#endif
+
 #include <string.h>
 #include <libdragon.h>
 
@@ -242,7 +248,7 @@ int main(void)
     while (1)
     {
         console_clear();
-        printf("N64 Accessory Probe Tester v0.5 by Meeq\n");
+        printf("%s\n", ROM_TITLE);
         printf("\n");
         printf("These tests attempt to detect various controller accessories\n");
         printf("by writing magic values to 0x8000 and reading them back.\n");

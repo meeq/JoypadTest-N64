@@ -4,6 +4,12 @@
  * @brief N64 test ROM for Joypad subsystem
  */
 
+#ifdef ROM_VERSION
+static const char ROM_TITLE[] = "N64 Controller Pak Dump " ROM_VERSION " by Meeq";
+#else
+static const char ROM_TITLE[] = "N64 Controller Pak Dump by Meeq";
+#endif
+
 #include <assert.h>
 #include <string.h>
 #include <libdragon.h>
@@ -148,8 +154,7 @@ int main(void)
         accessory_type = joypad_get_accessory_type(port);
 
         console_clear();
-        printf("N64 Controller Pak Dump v3 by Meeq\n");
-        printf("\n");
+        printf("%s\n\n", ROM_TITLE);
 
         if (!sram_detected)
         {

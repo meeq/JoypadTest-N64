@@ -4,6 +4,12 @@
  * @brief N64 test ROM for Joypad subsystem
  */
 
+#ifdef ROM_VERSION
+static const char ROM_TITLE[] = "Snap Station Test " ROM_VERSION " by Meeq";
+#else
+static const char ROM_TITLE[] = "Snap Station Test by Meeq";
+#endif
+
 #include <string.h>
 #include <libdragon.h>
 
@@ -54,12 +60,12 @@ static const char *snap_station_state_format(uint8_t state)
             return "Pre-Save";
         case JOYBUS_N64_SNAP_STATION_STATE_POST_SAVE:
             return "Post-Save";
-        case JOYBUS_N64_SNAP_STATION_STATE_RESET_NOW:
+        case JOYBUS_N64_SNAP_STATION_STATE_RESET_CONSOLE:
             return "Reset Console";
         case JOYBUS_N64_SNAP_STATION_STATE_PRE_ROLL:
             return "Pre-Roll";
-        case JOYBUS_N64_SNAP_STATION_STATE_PRINT_PHOTO:
-            return "Print Photo";
+        case JOYBUS_N64_SNAP_STATION_STATE_CAPTURE_PHOTO:
+            return "Capture Photo";
         case JOYBUS_N64_SNAP_STATION_STATE_POST_ROLL:
             return "Post-Roll";
         case JOYBUS_N64_SNAP_STATION_STATE_BUSY:
@@ -88,7 +94,6 @@ static void snap_station_probe_read(void)
 {
     const uint16_t addr = JOYBUS_N64_ACCESSORY_ADDR_PROBE;
     uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
-    
     printf("Probing accessory on port 4...\n");
     console_render();
 
@@ -114,7 +119,8 @@ static void snap_station_state_read(void)
     const uint16_t addr = JOYBUS_N64_ACCESSORY_ADDR_SNAP_STATE;
     uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
     int crc_status;
-    uint8_t state;
+    uint8_t state = JOYBUS_N64_SNAP_STATION_STATE_IDLE;
+    bool cancel_message_shown = false;
     printf("Reading Snap Station state...\n");
     console_render();
     do
@@ -136,6 +142,16 @@ static void snap_station_state_read(void)
             if (state != JOYBUS_N64_SNAP_STATION_STATE_BUSY)
             {
                 wait_for_start_button();
+            }
+            else if (joypad_get_buttons(JOYPAD_PORT_1).start)
+            {
+                break;
+            }
+            else if (!cancel_message_shown)
+            {
+                printf("Waiting for Snap Station; press Start to cancel\n");
+                console_render();
+                cancel_message_shown = true;
             }
         }
     }
@@ -175,7 +191,7 @@ int main(void)
     console_set_debug(false);
 
     console_clear();
-    printf("Snap Station Test v1 by Meeq\n\n");
+    printf("%s\n\n", ROM_TITLE);
     printf("Pre-check to determine if Snap Station is already active:\n");
     snap_station_probe_read();
 
@@ -184,8 +200,7 @@ int main(void)
     while (1)
     {
         console_clear();
-
-        printf("Snap Station Test v2 by Meeq\n\n");
+        printf("%s\n\n", ROM_TITLE);
 
         joypad_scan();
         pressed = joypad_get_buttons_pressed(JOYPAD_PORT_1);
@@ -202,14 +217,14 @@ int main(void)
         {
             printf("Snap Station detected on port 4!\n");
         }
-        
+
         printf("Command List:\n");
         printf("R       = Read State\n");
         printf("A       = Pre-Save      (0x%02X)\n", JOYBUS_N64_SNAP_STATION_STATE_PRE_SAVE);
         printf("B       = Post-Save     (0x%02X)\n", JOYBUS_N64_SNAP_STATION_STATE_POST_SAVE);
-        printf("C-Down  = Reset Console (0x%02X)\n", JOYBUS_N64_SNAP_STATION_STATE_RESET_NOW);
+        printf("C-Down  = Reset Console (0x%02X)\n", JOYBUS_N64_SNAP_STATION_STATE_RESET_CONSOLE);
         printf("C-Left  = Pre-Roll      (0x%02X)\n", JOYBUS_N64_SNAP_STATION_STATE_PRE_ROLL);
-        printf("C-Up    = Print Photo   (0x%02X)\n", JOYBUS_N64_SNAP_STATION_STATE_PRINT_PHOTO);
+        printf("C-Up    = Capture Photo (0x%02X)\n", JOYBUS_N64_SNAP_STATION_STATE_CAPTURE_PHOTO);
         printf("C-Right = Post-Roll     (0x%02X)\n", JOYBUS_N64_SNAP_STATION_STATE_POST_ROLL);
         printf("\n");
         console_render();
@@ -221,11 +236,11 @@ int main(void)
         else if (pressed.b)
             snap_station_command(JOYBUS_N64_SNAP_STATION_STATE_POST_SAVE);
         else if (pressed.c_down)
-            snap_station_command(JOYBUS_N64_SNAP_STATION_STATE_RESET_NOW);
+            snap_station_command(JOYBUS_N64_SNAP_STATION_STATE_RESET_CONSOLE);
         else if (pressed.c_left)
             snap_station_command(JOYBUS_N64_SNAP_STATION_STATE_PRE_ROLL);
         else if (pressed.c_up)
-            snap_station_command(JOYBUS_N64_SNAP_STATION_STATE_PRINT_PHOTO);
+            snap_station_command(JOYBUS_N64_SNAP_STATION_STATE_CAPTURE_PHOTO);
         else if (pressed.c_right)
             snap_station_command(JOYBUS_N64_SNAP_STATION_STATE_POST_ROLL);
     }

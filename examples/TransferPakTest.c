@@ -4,6 +4,12 @@
  * @brief N64 test ROM for Joypad subsystem
  */
 
+#ifdef ROM_VERSION
+static const char ROM_TITLE[] = "Joypad Transfer Pak Test " ROM_VERSION " by Meeq";
+#else
+static const char ROM_TITLE[] = "Joypad Transfer Pak Test by Meeq";
+#endif
+
 #include <string.h>
 #include <libdragon.h>
 
@@ -37,7 +43,7 @@ int main(void)
     {
         console_clear();
 
-        printf("Joypad Transfer Pak Test v1 by Meeq\n");
+        printf("%s\n\n", ROM_TITLE);
         printf("A to enable Pak; B to disable Pak; C-Left to read ROM header\n");
         printf("C-Up to start MBC5 rumble; C-Down to stop MBC5 rumble\n\n");
 
