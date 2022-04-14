@@ -10,6 +10,7 @@ all:                       \
 	BioSensorTest.z64      \
 	ControllerPakDump.z64  \
 	JoypadTest.z64         \
+	SnapStationTest.z64    \
 	TransferPakTest.z64    \
 
 BUILD_DIR = build
@@ -35,6 +36,9 @@ $(BUILD_DIR)/ControllerPakDump.elf: $(OBJS) $(BUILD_DIR)/examples/ControllerPakD
 
 JoypadTest.z64: N64_ROM_TITLE = JoypadTest
 $(BUILD_DIR)/JoypadTest.elf: $(OBJS) $(BUILD_DIR)/examples/JoypadTest.o
+
+SnapStationTest.z64: N64_ROM_TITLE = SnapStationTest
+$(BUILD_DIR)/SnapStationTest.elf: $(OBJS) $(BUILD_DIR)/examples/SnapStationTest.o
 
 TransferPakTest.z64: N64_ROM_TITLE = TransferPakTest
 $(BUILD_DIR)/TransferPakTest.elf: $(OBJS) $(BUILD_DIR)/examples/TransferPakTest.o
