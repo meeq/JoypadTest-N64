@@ -416,6 +416,10 @@ void joypad_accessory_detect_async(joypad_port_t port)
 {
     ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+    // Ensure Transfer Pak wait timer has been initialized
+    if (!accessory->transfer_pak_wait_timer)
+        joypad_n64_transfer_pak_wait_timer_init(port);
+    // Don't interrupt other accessory operations if they are still running
     if (accessory->state == JOYPAD_ACCESSORY_STATE_IDLE)
     {
         // Step 1: Ensure Transfer Pak is turned off
