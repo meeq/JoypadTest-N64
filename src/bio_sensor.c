@@ -10,6 +10,7 @@
 
 #include "joybus_commands.h"
 #include "joybus_n64_accessory.h"
+#include "joypad.h"
 #include "bio_sensor.h"
 
 #define BIO_SENSOR_PERIODS_MINIMUM 8
@@ -23,6 +24,29 @@ typedef enum
     BIO_SENSOR_STATE_RESTING,
     BIO_SENSOR_STATE_PULSING,
 } bio_sensor_state_t;
+
+typedef struct __attribute__((packed))
+{
+    /* metadata */
+    uint8_t send_len;
+    uint8_t recv_len;
+    /* send data */
+    union
+    {
+        uint8_t send_bytes[0x03];
+        struct __attribute__((__packed__))
+        {
+            uint8_t command;
+            uint16_t addr_checksum;
+        };
+    };
+    /* recv_data */
+    union
+    {
+        uint8_t recv_bytes[0x01];
+        uint8_t data;
+    };
+} bio_sensor_short_read_port_t;
 
 typedef struct
 {
@@ -39,69 +63,108 @@ static volatile bio_sensor_reader_t bio_sensor_readers[JOYBUS_CONTROLLER_PORT_CO
 
 static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
 {
-    const uint8_t *out_bytes = (void *)out_dwords;
-    int port = (int)ctx;
-    volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
-    bio_sensor_state_t current_state = reader->state;
-    // Ignore this read if this sensor has been stopped
-    if (current_state == BIO_SENSOR_STATE_STOPPED) return;
-
-    const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
-    int crc_status = joybus_n64_accessory_data_crc_compare(recv_cmd->data, recv_cmd->data_crc);
-    if (crc_status != JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK)
-    {
-        // Stop reading if the Bio Sensor has been disconnected
-        if (crc_status == JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_NO_PAK)
-        {
-            bio_sensor_read_stop(port);
-        }
-        // Skip this read if it fails the CRC check
-        reader->read_pending = false;
-        return;
-    }
-
     int64_t now_ticks = timer_ticks();
-    if (reader->period_start_ticks + BIO_SENSOR_PERIOD_INTERVAL_TICKS < now_ticks)
+    const uint8_t *out_bytes = (void *)out_dwords;
+    uint8_t send_len, recv_len, command_id;
+    size_t i = 0;
+
+    JOYPAD_PORT_FOREACH (port)
     {
-        unsigned cursor = reader->period_cursor;
-        reader->beats_per_period[cursor++] = reader->period_beats;
-        if (cursor >= BIO_SENSOR_PERIODS_MAXIMUM) cursor = 0;
-        reader->period_cursor = cursor;
-        reader->period_beats = 0;
-        reader->period_counter++;
-        reader->period_start_ticks = now_ticks;
-    }
+        // Check send_len to figure out if this port has a command on it
+        send_len = out_bytes[i + JOYBUS_COMMAND_OFFSET_SEND_LEN];
+        if (send_len == 0)
+        {
+            i += JOYBUS_COMMAND_SKIP_SIZE;
+            continue;
+        }
+        else
+        {
+            recv_len = out_bytes[i + JOYBUS_COMMAND_OFFSET_RECV_LEN];
+            command_id = out_bytes[i + JOYBUS_COMMAND_OFFSET_COMMAND_ID];
+        }
 
-    uint8_t sensor_data = recv_cmd->data[0];
-    bio_sensor_state_t next_state = BIO_SENSOR_STATE_STOPPED;
-    if (sensor_data == 0x00) next_state = BIO_SENSOR_STATE_PULSING;
-    if (sensor_data == 0x03) next_state = BIO_SENSOR_STATE_RESTING;
+        volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
+        bio_sensor_state_t current_state = reader->state;
+        if (
+            current_state == BIO_SENSOR_STATE_STOPPED ||
+            command_id != JOYBUS_COMMAND_ID_N64_ACCESSORY_READ
+        )
+        {
+            i += JOYBUS_COMMAND_METADATA_SIZE + send_len + recv_len;
+            continue;
+        }
 
-    if (
-        current_state == BIO_SENSOR_STATE_PULSING &&
-        next_state == BIO_SENSOR_STATE_RESTING
-    ) {
-        reader->period_beats += 1;
+        const bio_sensor_short_read_port_t *recv_cmd;
+        recv_cmd = (void *)&out_bytes[i];
+        i += sizeof(*recv_cmd);
+        
+        if (reader->period_start_ticks + BIO_SENSOR_PERIOD_INTERVAL_TICKS < now_ticks)
+        {
+            unsigned cursor = reader->period_cursor;
+            reader->beats_per_period[cursor++] = reader->period_beats;
+            if (cursor >= BIO_SENSOR_PERIODS_MAXIMUM) cursor = 0;
+            reader->period_cursor = cursor;
+            reader->period_beats = 0;
+            reader->period_counter++;
+            reader->period_start_ticks = now_ticks;
+        }
+
+        uint8_t sensor_data = recv_cmd->data;
+        bio_sensor_state_t next_state = BIO_SENSOR_STATE_STOPPED;
+        if (sensor_data == 0x00) next_state = BIO_SENSOR_STATE_PULSING;
+        if (sensor_data == 0x03) next_state = BIO_SENSOR_STATE_RESTING;
+
+        if (
+            current_state == BIO_SENSOR_STATE_PULSING &&
+            next_state == BIO_SENSOR_STATE_RESTING
+        )
+        {
+            reader->period_beats += 1;
+        }
+        reader->state = next_state;
+        reader->read_pending = false;
     }
-    reader->state = next_state;
-    reader->read_pending = false;
 }
 
 static void bio_sensor_vi_interrupt_callback(void)
 {
-    for (int port = 0; port < JOYBUS_CONTROLLER_PORT_COUNT; ++port)
+    const uint16_t addr = JOYBUS_N64_ACCESSORY_ADDR_BIO_PULSE;
+    const bio_sensor_short_read_port_t send_cmd = {
+        .send_len = sizeof(send_cmd.send_bytes),
+        .recv_len = sizeof(send_cmd.recv_bytes),
+        .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_READ,
+        .addr_checksum = joybus_n64_accessory_addr_checksum(addr),
+    };
+    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
+    size_t i = 0;
+
+    JOYPAD_PORT_FOREACH (port)
     {
+        volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
         if (
-            bio_sensor_readers[port].read_pending == false &&
-            bio_sensor_readers[port].state != BIO_SENSOR_STATE_STOPPED
+            reader->read_pending == false &&
+            reader->state != BIO_SENSOR_STATE_STOPPED
         )
         {
-            bio_sensor_readers[port].read_pending = true;
-            joybus_n64_accessory_read_async(
-                port, JOYBUS_N64_ACCESSORY_ADDR_BIO_PULSE,
-                bio_sensor_read_callback, (void *)port
-            );
+            reader->read_pending = true;
+            // Micro-optimization: Minimize copy length
+            const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
+            memcpy(&input[i], &send_cmd, recv_offset);
+            i += sizeof(send_cmd);
         }
+        else
+        {
+            // Skip this port
+            i += JOYBUS_COMMAND_SKIP_SIZE;
+        }
+    }
+
+    if (i)
+    {
+        // Close out the Joybus operation block
+        input[i] = 0xFE;
+        input[JOYBUS_BLOCK_SIZE - 1] = 0x01;
+        joybus_exec_async(input, bio_sensor_read_callback, NULL);
     }
 }
 
@@ -113,6 +176,7 @@ void bio_sensor_init(void)
 void bio_sensor_close(void)
 {
     unregister_VI_handler(bio_sensor_vi_interrupt_callback);
+    memset((void *)bio_sensor_readers, 0, sizeof(bio_sensor_readers));
 }
 
 void bio_sensor_read_start(int port)
