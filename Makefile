@@ -19,6 +19,7 @@ ACCESSORY_PROBE_TEST_VERSION = v5
 BIO_SENSOR_TEST_VERSION      = v4
 CONTROLLER_PAK_DUMP_VERSION  = v2
 GB_CAMERA_TEST_VERSION       = v1
+RUMBLE_SHORT_TEST_VERSION    = v1
 SNAP_STATION_TEST_VERSION    = v4
 TRANSFER_PAK_TEST_VERSION    = v2
 
@@ -26,6 +27,7 @@ TRANSFER_PAK_TEST_VERSION    = v2
 
 roms:                      \
 	AccessoryProbeTest.z64 \
+	RumbleShortTest.z64 \
 	AccessoryTest.z64      \
 	BioSensorTest.z64      \
 	ControllerPakDump.z64  \
@@ -57,6 +59,10 @@ $(BUILD_DIR)/GBCameraTest.elf: $(OBJS) $(BUILD_DIR)/examples/GBCameraTest.o
 JoypadTest.z64: N64_ROM_TITLE = JoypadTest
 $(BUILD_DIR)/JoypadTest.elf: $(OBJS) $(BUILD_DIR)/examples/JoypadTest.o
 
+RumbleShortTest.z64: N64_ROM_TITLE = RumbleShortTest
+RumbleShortTest.z64: N64_CFLAGS += -DROM_VERSION='"$(RUMBLE_SHORT_TEST_VERSION)"'
+$(BUILD_DIR)/RumbleShortTest.elf: $(OBJS) $(BUILD_DIR)/examples/RumbleShortTest.o
+
 SnapStationTest.z64: N64_ROM_TITLE = SnapStationTest
 SnapStationTest.z64: N64_CFLAGS += -DROM_VERSION='"$(SNAP_STATION_TEST_VERSION)"'
 $(BUILD_DIR)/SnapStationTest.elf: $(OBJS) $(BUILD_DIR)/examples/SnapStationTest.o
@@ -72,6 +78,7 @@ archives:                                                  \
 	BioSensorTest-$(BIO_SENSOR_TEST_VERSION).zip           \
 	ControllerPakDump-$(CONTROLLER_PAK_DUMP_VERSION).zip   \
 	GBCameraTest-$(GB_CAMERA_TEST_VERSION).zip             \
+	RumbleShortTest-$(RUMBLE_SHORT_TEST_VERSION).zip       \
 	SnapStationTest-$(SNAP_STATION_TEST_VERSION).zip       \
 	TransferPakTest-$(TRANSFER_PAK_TEST_VERSION).zip       \
 
@@ -90,6 +97,10 @@ ControllerPakDump-$(CONTROLLER_PAK_DUMP_VERSION).zip: ControllerPakDump.z64
 GBCameraTest-$(GB_CAMERA_TEST_VERSION).zip: GBCameraTest.z64
 	cp $^ $(^:%.z64=%-$(GB_CAMERA_TEST_VERSION).z64)
 	zip -m $@ $(^:%.z64=%-$(GB_CAMERA_TEST_VERSION).z64)
+
+RumbleShortTest-$(RUMBLE_SHORT_TEST_VERSION).zip: RumbleShortTest.z64
+	cp $^ $(^:%.z64=%-$(RUMBLE_SHORT_TEST_VERSION).z64)
+	zip -m $@ $(^:%.z64=%-$(RUMBLE_SHORT_TEST_VERSION).z64)
 
 SnapStationTest-$(SNAP_STATION_TEST_VERSION).zip: SnapStationTest.z64
 	cp $^ $(^:%.z64=%-$(SNAP_STATION_TEST_VERSION).z64)
