@@ -296,6 +296,7 @@ joypad_buttons_t joypad_get_buttons_held(joypad_port_t port);
 
 int joypad_get_axis_pressed(joypad_port_t port, joypad_axis_t axis);
 int joypad_get_axis_released(joypad_port_t port, joypad_axis_t axis);
+int joypad_get_axis_held(joypad_port_t port, joypad_axis_t axis);
 
 #ifdef __cplusplus
 }

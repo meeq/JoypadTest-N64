@@ -727,3 +727,12 @@ int joypad_get_axis_released(joypad_port_t port, joypad_axis_t axis)
     if (current >= -threshold && previous < -threshold) return -1;
     return 0;
 }
+
+int joypad_get_axis_held(joypad_port_t port, joypad_axis_t axis)
+{
+    int current = 0, previous = 0, threshold = 0;
+    joypad_get_axis_values(port, axis, &current, &previous, &threshold);
+    if (current > +threshold && previous > +threshold) return +1;
+    if (current < -threshold && previous < -threshold) return -1;
+    return 0;
+}
