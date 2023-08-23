@@ -22,16 +22,62 @@
  * @brief Joypad abstraction interface.
  *
  * The Joypad subsystem is the successor to the LibDragon Controller subsystem.
- * The Joypad subsystem is an abstraction layer for the system's controller ports that
- * makes it easy for developers to support a variety of controller types such as:
+ * The Joypad subsystem is in charge of communication with the controller ports
+ * and provides a common interface to support a variety of input devices:
  *
- * * Standard N64 controllers
- * * GameCube controllers (with a passive adapter)
+ * * Nintendo 64 controller
+ * * Nintendo 64 mouse
+ * * GameCube controller (with a passive adapter)
+ * 
+ * To use a Joypad, the developer must first call #joypad_init. Once initialized,
+ * The Joypad subsystem will automatically identify and read all connected input
+ * devices once per frame.
+ * 
+ * To refer to individual ports, use the #joypad_port_t enumeration values.
+ * To iterate across all ports, use the #JOYPAD_PORT_FOREACH macro.
+ * 
+ * To read the controllers, first call #joypad_scan once per frame to process
+ * the input data. #joypad_get_style will return which "style" of device is
+ * connected to a port (#joypad_style_t). #joypad_get_inputs will return the
+ * buttons and analog input state for a given controller port.
+ * 
+ * Developers can determine whether the input device is capable of rumble by
+ * calling #joypad_get_rumble_supported and then starting/stopping the rumble
+ * motor by calling #joypad_set_rumble_active.
+ * 
+ * The Joypad subsystem will automatically detect which accessory is connected
+ * to Nintendo 64 controllers. Call #joypad_get_accessory_type to determine
+ * which accessory was detected. 
+ * 
+ * For advanced use-cases, a developer can determine exactly which type of
+ * input device is connected by calling #joypad_get_identifier, which will
+ * return the 16-bit device identifier value from the Joybus "Info" response.
+ * 
+ * To read digital button state for an input device:
+ * * #joypad_get_buttons
+ * * #joypad_get_buttons_pressed
+ * * #joypad_get_buttons_released
+ * * #joypad_get_buttons_held
+ * 
+ * To read analog directional state for an input device:
+ * * #joypad_get_axis_pressed
+ * * #joypad_get_axis_released
+ * * #joypad_get_axis_held
  */
 
+/**
+ * @brief Number of ticks between Joybus identify commands.
+ * 
+ * During VI interrupt, the Joypad subsystem will periodically re-identify
+ * the connected devices to check if the identifier has changed or if any
+ * accessories have been connected/disconnected.
+ */
 #define JOYPAD_IDENTIFY_INTERVAL_TICKS TICKS_PER_SECOND
 
-// "Hot" (interrupt-driven) global state
+/**
+ * @defgroup joypad_hot_state "Hot" (interrupt-driven) global state
+ * @{
+ */
 static volatile int64_t joypad_identify_last_ticks = 0;
 static volatile bool joypad_identify_pending = false;
 static volatile uint8_t joypad_identify_input_valid = false;
@@ -52,10 +98,15 @@ volatile joypad_identifier_t joypad_identifiers_hot[JOYPAD_PORT_COUNT] = {0};
 volatile joypad_device_hot_t joypad_devices_hot[JOYPAD_PORT_COUNT] = {0};
 volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT] = {0};
 volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT] = {0};
+/** @} */ /* joypad_hot_state */
 
-// "Cold" (stable) global state
+/**
+ * @defgroup joypad_cold_state "Cold" (non-volatile) global state
+ * @{
+ */
 static bool joypad_initialized = false;
 static joypad_device_cold_t joypad_devices_cold[JOYPAD_PORT_COUNT] = {0};
+/** @} */ /* joypad_cold_state */
 
 static void joypad_device_reset(joypad_port_t port, joypad_identifier_t identifier)
 {
@@ -706,6 +757,9 @@ static void joypad_get_axis_values(
             *current = *(int8_t *)(current_inputs + axis);
             *previous = *(int8_t *)(previous_inputs + axis);
             *threshold = JOYBUS_RANGE_GCN_TRIGGER_MAX / 2;
+            break;
+        default:
+            assertf(0, "Invalid joypad_get_axis_values axis");
             break;
     }
 }
